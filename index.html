@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v1.4</title>
+<title>Suivi Promo v1.5</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -112,7 +112,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v1.4</span></h1>
+  <h1>Suivi Promo<span class="v">v1.5</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -147,10 +147,27 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
   </div>
 </dialog>
 
+<dialog id="dlgProduit">
+  <h3 id="pdTitre">Nouveau produit</h3>
+  <p class="sous">La description exacte évite de comparer deux modèles différents.</p>
+  <label for="pdNom">Nom court</label>
+  <input id="pdNom" type="text" maxlength="60" placeholder="Mitigeur lavabo">
+  <label for="pdPrec">Description exacte</label>
+  <textarea id="pdPrec" maxlength="300" placeholder="Marque, modèle, dimensions, référence — tout ce qui distingue ce produit d'un autre"></textarea>
+  <label for="pdUnites">Nombre d'unités concernées</label>
+  <input id="pdUnites" type="number" inputmode="numeric" step="1" min="1" value="50">
+  <p id="pdErreur" style="margin:10px 0 0;font-size:13px;color:var(--alerte);min-height:18px"></p>
+  <div class="duo">
+    <button class="action pale" id="pdAnnuler">Annuler</button>
+    <button class="action" id="pdEnregistrer">Enregistrer</button>
+  </div>
+  <div class="duo"><button class="action pale" id="pdSupprimer" style="border-color:var(--alerte);color:var(--alerte)">Supprimer ce produit</button></div>
+</dialog>
+
 <script>
 "use strict";
-const VERSION = "1.4";
-const CLE = "suivi-promo-v14";
+const VERSION = "1.5";
+const CLE = "suivi-promo-v15";
 
 const ENSEIGNES_DEFAUT = [
   {id:"bricoplanit", nom:"BricoPlanit",   ville:"Ghlin",                   km:3,  pays:"BE"},
@@ -218,6 +235,7 @@ function sauver(){ try{ localStorage.setItem(CLE, JSON.stringify(etat)); }catch(
 
 const eur  = n => (n==null||isNaN(n)) ? "—" : n.toLocaleString("fr-BE",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 const eur0 = n => (n==null||isNaN(n)) ? "—" : Math.round(n).toLocaleString("fr-BE")+" €";
+const cts = n => Math.round((Number(n)||0)*100);
 const enseigne = id => etat.enseignes.find(e=>e.id===id);
 const produit  = id => etat.produits.find(p=>p.id===id);
 const aujourdhui = () => new Date().toISOString().slice(0,10);
@@ -245,7 +263,9 @@ function rendreListe(){
   const cartes = etat.produits.map(p=>{
     const t = tableau(p.id), bas=t[0], haut=t[t.length-1];
     const compare = t.length>=2;
-    if(compare) enjeuTotal += (haut.prix-bas.prix)*(p.unites||0);
+    const ecartCts = compare ? (cts(haut.prix)-cts(bas.prix)) : 0;
+    const enjeuCts  = ecartCts * (p.unites||0);
+    if(compare) enjeuTotal += enjeuCts;
     if(!t.length){
       return `<article class="ligne vide-releve"><button class="zone" data-fiche="${p.id}">
         <p class="nom">${p.nom}</p><p class="prec">${p.precision}</p>
@@ -258,16 +278,21 @@ function rendreListe(){
         <span class="chez">${bas.enseigne.nom} · ${bas.enseigne.ville}</span></div>
       ${compare
         ? `<p class="compare chiffre">le plus cher : ${eur(haut.prix)} chez ${haut.enseigne.nom} · ${t.length} enseignes</p>
-           <p class="enjeu chiffre">${eur0((haut.prix-bas.prix)*(p.unites||0))} d'écart sur ${p.unites} unités</p>`
+           <p class="enjeu chiffre">${eur0(enjeuCts/100)} d'écart sur ${p.unites} unités</p>`
         : `<p class="compare">Une seule enseigne relevée</p>`}
       ${vieux?`<p class="attente-txt">Relevé il y a ${jours(bas.date)} jours</p>`:""}
     </button></article>`;
   }).join("");
-  el.innerHTML = `<div class="bandeau"><div class="gros chiffre">${eur0(enjeuTotal)}</div>
+  el.innerHTML = `<div class="bandeau"><div class="gros chiffre">${eur0(enjeuTotal/100)}</div>
     <div class="lab">Écart cumulé sur l'ensemble du parc</div></div>${cartes}
-    <div class="duo"><button class="action" id="btnReleveRapide">Noter un prix</button></div>`;
+    <div class="duo"><button class="action" id="btnReleveRapide">Noter un prix</button></div>
+    <div class="duo"><button class="action pale" id="btnNouveauProduit">Ajouter un produit</button></div>`;
   el.querySelectorAll("[data-fiche]").forEach(b=>{ b.onclick=()=>ouvrirFiche(b.dataset.fiche); });
-  document.getElementById("btnReleveRapide").onclick=()=>ouvrirReleve(etat.produits[0].id);
+  document.getElementById("btnReleveRapide").onclick=()=>{
+    if(!etat.produits.length){ ouvrirProduit(null); return; }
+    ouvrirReleve(etat.produits[0].id);
+  };
+  document.getElementById("btnNouveauProduit").onclick=()=>ouvrirProduit(null);
   majResume();
 }
 function majResume(){
@@ -292,11 +317,71 @@ function ouvrirFiche(pid){
     <h2>Classement des prix</h2>${classement}
     ${manquantes.length?`<h2>Pas encore relevé</h2><p class="prec">${manquantes.map(e=>e.nom+" ("+e.ville+")").join(" · ")}</p>`:""}
     <div class="duo"><button class="action pale" id="fcFermer">Fermer</button>
-      <button class="action" id="fcReleve">Noter un prix</button></div>`;
+      <button class="action" id="fcReleve">Noter un prix</button></div>
+    <div class="duo"><button class="action pale" id="fcModifier">Modifier ce produit</button></div>`;
   dlg.showModal();
+  document.getElementById("fcModifier").onclick=()=>{dlg.close();ouvrirProduit(pid);};
   document.getElementById("fcFermer").onclick=()=>dlg.close();
   document.getElementById("fcReleve").onclick=()=>{dlg.close();ouvrirReleve(pid);};
 }
+
+/* ---------- Produits ---------- */
+function nouvelIdProduit(){
+  let n = 1;
+  const pris = new Set(etat.produits.map(p=>p.id));
+  while(pris.has("p"+String(n).padStart(2,"0"))) n++;
+  return "p"+String(n).padStart(2,"0");
+}
+function ouvrirProduit(pid){
+  produitOuvert = pid;
+  const p = pid ? produit(pid) : null;
+  document.getElementById("pdTitre").textContent = p ? "Modifier le produit" : "Nouveau produit";
+  document.getElementById("pdNom").value    = p ? p.nom : "";
+  document.getElementById("pdPrec").value   = p ? p.precision : "";
+  document.getElementById("pdUnites").value = p ? (p.unites||50) : (etat.produits[0] ? etat.produits[0].unites : 50);
+  document.getElementById("pdErreur").textContent = "";
+  document.getElementById("pdSupprimer").hidden = !p;
+  document.getElementById("dlgProduit").showModal();
+}
+function enregistrerProduit(){
+  const nom  = document.getElementById("pdNom").value.trim();
+  const prec = document.getElementById("pdPrec").value.trim();
+  const u    = parseInt(document.getElementById("pdUnites").value, 10);
+  const err  = document.getElementById("pdErreur");
+  if(nom.length < 2){ err.textContent = "Donnez un nom d'au moins deux caractères."; return false; }
+  if(prec.length < 3){ err.textContent = "La description exacte est obligatoire : c'est elle qui garantit que vous comparez le même article."; return false; }
+  if(!Number.isFinite(u) || u < 1){ err.textContent = "Le nombre d'unités doit être au moins 1."; return false; }
+  const doublon = etat.produits.some(p=>p.id!==produitOuvert && p.nom.toLowerCase()===nom.toLowerCase());
+  if(doublon){ err.textContent = "Un produit porte déjà ce nom."; return false; }
+  if(produitOuvert && produit(produitOuvert)){
+    const p = produit(produitOuvert);
+    p.nom = nom; p.precision = prec; p.unites = u;
+  } else {
+    etat.produits.push({id:nouvelIdProduit(), nom, precision:prec, unites:u});
+  }
+  sauver();
+  document.getElementById("dlgProduit").close();
+  rendreTout();
+  return true;
+}
+function supprimerProduit(){
+  if(!produitOuvert) return false;
+  const p = produit(produitOuvert);
+  if(!p) return false;
+  const n = etat.releves.filter(r=>r.produit===produitOuvert).length;
+  const msg = n ? "Supprimer « "+p.nom+" » et ses "+n+" relevés ?" : "Supprimer « "+p.nom+" » ?";
+  if(!confirm(msg)) return false;
+  etat.produits = etat.produits.filter(x=>x.id!==produitOuvert);
+  etat.releves  = etat.releves.filter(r=>r.produit!==produitOuvert);
+  produitOuvert = null;
+  sauver();
+  document.getElementById("dlgProduit").close();
+  rendreTout();
+  return true;
+}
+document.getElementById("pdAnnuler").onclick=()=>document.getElementById("dlgProduit").close();
+document.getElementById("pdEnregistrer").onclick=()=>enregistrerProduit();
+document.getElementById("pdSupprimer").onclick=()=>supprimerProduit();
 
 /* ---------- Relevé ---------- */
 function ouvrirReleve(pid){
@@ -330,8 +415,8 @@ function rendrePanier(){
     let gain=0, articles=[];
     etat.produits.forEach(p=>{
       const d=dernier(p.id,e.id), bas=plancher(p.id), haut=plafond(p.id);
-      if(d && bas && haut && bas.enseigne.id===e.id && haut.prix>d.prix){
-        gain += (haut.prix-d.prix); articles.push(p.nom);
+      if(d && bas && haut && bas.enseigne.id===e.id && cts(haut.prix)>cts(d.prix)){
+        gain += (cts(haut.prix)-cts(d.prix))/100; articles.push(p.nom);
       }
     });
     const trajet = e.km*2*etat.reglages.coutKm;
@@ -360,7 +445,7 @@ function rendreReglages(){
   el.innerHTML = `
     <h2>Parc et déplacement</h2>
     <label for="cfUnites">Nombre d'unités à équiper</label>
-    <input id="cfUnites" type="number" step="1" min="1" value="${etat.produits[0].unites}">
+    <input id="cfUnites" type="number" step="1" min="1" value="${etat.produits[0] ? etat.produits[0].unites : 50}">
     <label for="cfKm">Coût au kilomètre (€)</label>
     <input id="cfKm" type="number" step="0.01" min="0" value="${etat.reglages.coutKm}">
     <label for="cfJ">Un relevé est périmé après (jours)</label>
@@ -427,7 +512,8 @@ function journal(txt, ok){
 // Structure complète attendue en production : tous les champs présents,
 // même vides, pour que Make les enregistre au premier appel.
 function gabaritOffre(pid, eid, prix){
-  const p = produit(pid), e = enseigne(eid);
+  const p = produit(pid) || {id:"", nom:"", precision:""};
+  const e = enseigne(eid) || {id:"", nom:"", ville:"", pays:"", km:0};
   return {
     produit_id: p.id,
     produit_nom: p.nom,
@@ -530,7 +616,7 @@ function rendreMake(){
     envoyer({
       app:"suivi-promo", version:VERSION, action:"offre",
       envoye_le: new Date().toISOString(),
-      offre: gabaritOffre("p11","edepotbe",99.95)
+      offre: gabaritOffre(etat.produits[0] ? etat.produits[0].id : null, etat.enseignes[0] ? etat.enseignes[0].id : null, 99.95)
     }, "offre complète");
   };
   document.getElementById("mkT2").onclick=()=>{
