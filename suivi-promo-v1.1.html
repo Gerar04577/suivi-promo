@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Suivi Promo">
+<meta name="theme-color" content="#2f4358">
+<title>Suivi Promo v1.1</title>
+<style>
+:root{
+  --encre:#1c2733;
+  --papier:#f2f0ec;
+  --carte:#ffffff;
+  --trait:#d9d5cd;
+  --sourdine:#6d7681;
+  --gain:#1c6b3f;
+  --gain-fond:#e4f0e8;
+  --attente:#8a5a12;
+  --attente-fond:#f7ecd9;
+  --ardoise:#2f4358;
+  --r:10px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--papier);color:var(--encre);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:16px;line-height:1.4;
+  font-variant-numeric:tabular-nums;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.chiffre{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+header{
+  position:sticky;top:0;z-index:20;
+  background:var(--ardoise);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;
+}
+header h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.2px}
+header .v{font-size:12px;opacity:.65;font-weight:400;margin-left:6px}
+header .resume{margin-top:4px;font-size:13px;opacity:.88}
+
+nav{display:flex;background:var(--carte);border-bottom:1px solid var(--trait)}
+nav button{
+  flex:1;padding:13px 4px;border:0;background:none;
+  font-size:14px;font-weight:500;color:var(--sourdine);
+  border-bottom:3px solid transparent;cursor:pointer;font-family:inherit;
+}
+nav button[aria-selected="true"]{color:var(--ardoise);border-bottom-color:var(--ardoise)}
+
+main{padding:14px}
+section[hidden]{display:none}
+
+.ligne{
+  background:var(--carte);border:1px solid var(--trait);
+  border-radius:var(--r);padding:12px 14px;margin-bottom:9px;
+}
+.ligne.ecart{border-left:5px solid var(--gain);padding-left:11px}
+.ligne.vide-releve{border-left:5px solid var(--attente);padding-left:11px}
+.ligne button.zone{all:unset;display:block;width:100%;cursor:pointer}
+.nom{font-size:15px;font-weight:600;margin:0}
+.prec{font-size:12.5px;color:var(--sourdine);margin:2px 0 10px}
+.plancher{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.plancher .p{font-size:22px;font-weight:600}
+.plancher .chez{font-size:13px;color:var(--sourdine)}
+.compare{margin:8px 0 0;font-size:13px;color:var(--sourdine)}
+.enjeu{
+  margin:9px 0 0;font-size:13px;font-weight:600;color:var(--gain);
+  background:var(--gain-fond);display:inline-block;padding:4px 9px;border-radius:6px;
+}
+.attente-txt{margin:9px 0 0;font-size:13px;color:var(--attente);font-weight:500}
+
+h2{font-size:13px;font-weight:600;color:var(--sourdine);margin:20px 0 8px}
+h2:first-child{margin-top:0}
+
+button.action{
+  font-family:inherit;font-size:15px;font-weight:600;
+  padding:13px;border-radius:var(--r);border:1px solid var(--ardoise);
+  background:var(--ardoise);color:#fff;cursor:pointer;width:100%;
+}
+button.action.pale{background:var(--carte);color:var(--ardoise)}
+.duo{display:flex;gap:9px;margin-top:12px}
+.duo button{flex:1}
+
+label{display:block;font-size:13px;color:var(--sourdine);margin:14px 0 5px}
+input,select{
+  width:100%;font-family:inherit;font-size:17px;padding:11px 12px;
+  border:1px solid var(--trait);border-radius:8px;background:var(--carte);color:var(--encre);
+}
+input:focus,select:focus{outline:2px solid var(--ardoise);outline-offset:1px}
+
+dialog{border:0;border-radius:14px;padding:18px;width:min(94vw,420px);background:var(--papier);color:var(--encre)}
+dialog::backdrop{background:rgba(28,39,51,.55)}
+dialog h3{margin:0 0 2px;font-size:18px}
+dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
+
+.rang{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--trait);padding:9px 0;font-size:14px;gap:10px}
+.rang.best span:last-child{color:var(--gain);font-weight:600}
+.rang .ens{flex:1}
+.rang .quand{font-size:11.5px;color:var(--sourdine);display:block}
+
+.verdict{background:var(--carte);border:1px solid var(--trait);border-radius:var(--r);padding:13px 14px;margin-bottom:9px}
+.verdict.oui{border-left:5px solid var(--gain);padding-left:10px}
+.verdict .en{font-size:15px;font-weight:600}
+.verdict .km{font-size:12.5px;color:var(--sourdine);margin:2px 0 8px}
+.verdict .calc{font-size:13.5px}
+.verdict .calc b{font-size:16px}
+.verdict .dit{margin:8px 0 0;font-size:13.5px;font-weight:600}
+.verdict.oui .dit{color:var(--gain)}
+.verdict .dit.non{color:var(--sourdine)}
+
+.vide{color:var(--sourdine);font-size:14px;padding:26px 4px;text-align:center}
+.note{font-size:12.5px;color:var(--sourdine);margin-top:16px;line-height:1.5}
+.bandeau{background:var(--carte);border:1px solid var(--trait);border-radius:var(--r);padding:12px 14px;margin-bottom:14px}
+.bandeau .gros{font-size:24px;font-weight:600;color:var(--gain)}
+.bandeau .lab{font-size:13px;color:var(--sourdine)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Suivi Promo<span class="v">v1.1</span></h1>
+  <p class="resume" id="resume"></p>
+</header>
+
+<nav role="tablist">
+  <button role="tab" aria-selected="true" data-vue="liste">Comparer</button>
+  <button role="tab" aria-selected="false" data-vue="panier">Déplacement</button>
+  <button role="tab" aria-selected="false" data-vue="reglages">Réglages</button>
+</nav>
+
+<main>
+  <section id="vue-liste"></section>
+  <section id="vue-panier" hidden></section>
+  <section id="vue-reglages" hidden></section>
+</main>
+
+<dialog id="dlgFiche"></dialog>
+
+<dialog id="dlgReleve">
+  <h3 id="rvTitre">Noter un prix</h3>
+  <p class="sous" id="rvSous"></p>
+  <label for="rvEnseigne">Enseigne</label>
+  <select id="rvEnseigne"></select>
+  <label for="rvPrix">Prix vu (€)</label>
+  <input id="rvPrix" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00">
+  <label for="rvDate">Date</label>
+  <input id="rvDate" type="date">
+  <div class="duo">
+    <button class="action pale" id="rvAnnuler">Annuler</button>
+    <button class="action" id="rvEnregistrer">Enregistrer</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+const VERSION = "1.1";
+const CLE = "suivi-promo-v11";
+
+const ENSEIGNES_DEFAUT = [
+  {id:"bricoplanit",   nom:"BricoPlanit",   ville:"Ghlin",                   km:3,  pays:"BE"},
+  {id:"krefel",        nom:"Krëfel",        ville:"Grands Prés",             km:3,  pays:"BE"},
+  {id:"vandenborre",   nom:"Vanden Borre",  ville:"Mons",                    km:3,  pays:"BE"},
+  {id:"eldi",          nom:"ELDI",          ville:"Baudarts",                km:3,  pays:"BE"},
+  {id:"mrbrico",       nom:"Mr. Bricolage", ville:"Mons",                    km:3,  pays:"BE"},
+  {id:"hubo",          nom:"Hubo",          ville:"Jemappes",                km:5,  pays:"BE"},
+  {id:"gamma",         nom:"Gamma",         ville:"Quaregnon",               km:10, pays:"BE"},
+  {id:"edepotbe",      nom:"Electro Dépôt", ville:"Froyennes (Tournai)",     km:48, pays:"BE"},
+  {id:"bricodepot",    nom:"Brico Dépôt",   ville:"Aulnoy-lez-Valenciennes", km:45, pays:"FR"},
+  {id:"castorama",     nom:"Castorama",     ville:"Valenciennes",            km:45, pays:"FR"},
+  {id:"leroymerlin",   nom:"Leroy Merlin",  ville:"La Sentinelle",           km:48, pays:"FR"},
+  {id:"edepotfr",      nom:"Electro Dépôt", ville:"Prouvy (Valenciennes)",   km:50, pays:"FR"}
+];
+
+const PRODUITS_DEFAUT = [
+  {id:"p01", nom:"Mitigeur lavabo",         precision:"cartouche 35 mm",                     unites:50},
+  {id:"p02", nom:"Mitigeur évier",          precision:"cartouche 35 mm, bec bas",            unites:50},
+  {id:"p03", nom:"Mitigeur douche",         precision:"mécanique, cartouche 35 mm",          unites:50},
+  {id:"p04", nom:"Douchette et flexible",   precision:"flexible 1,5 m, 1 jet",               unites:50},
+  {id:"p05", nom:"Robinet d'arrêt équerre", precision:"avec flexible inox",                  unites:50},
+  {id:"p06", nom:"Peinture lavable",        precision:"blanc mat, seau 10 L",                unites:50},
+  {id:"p07", nom:"Peinture antifongique",   precision:"blanc satiné, 2,5 L",                 unites:50},
+  {id:"p08", nom:"Extracteur silencieux",   precision:"Ø 100, sous 30 dB",                   unites:50},
+  {id:"p09", nom:"Hotte de cuisine",        precision:"60 cm, recyclage",                    unites:50},
+  {id:"p10", nom:"Radiateur 1500 W",        precision:"thermostat électronique",             unites:50},
+  {id:"p11", nom:"Réfrigérateur table top", precision:"90 à 130 L",                          unites:50}
+];
+
+// Relevés de départ : prix relevés en ligne le 08/09/2026, à confirmer en magasin.
+const RELEVES_DEFAUT = [
+  {produit:"p11", enseigne:"edepotbe",    prix:99.95,  date:"2026-09-08", source:"web"},
+  {produit:"p11", enseigne:"vandenborre", prix:139.00, date:"2026-09-08", source:"web"},
+  {produit:"p10", enseigne:"castorama",   prix:119.90, date:"2026-09-08", source:"web"},
+  {produit:"p06", enseigne:"gamma",       prix:61.12,  date:"2026-09-08", source:"web"}
+];
+
+const REGLAGES_DEFAUT = {coutKm:0.25, seuilBE:15, seuilFR:60, jours:90};
+
+let etat = charger();
+let vue = "liste";
+let produitOuvert = null;
+
+function charger(){
+  try{
+    const brut = localStorage.getItem(CLE);
+    if(brut){
+      const d = JSON.parse(brut);
+      return {
+        produits:  d.produits  || structuredClone(PRODUITS_DEFAUT),
+        enseignes: d.enseignes || structuredClone(ENSEIGNES_DEFAUT),
+        releves:   d.releves   || structuredClone(RELEVES_DEFAUT),
+        reglages:  Object.assign({}, REGLAGES_DEFAUT, d.reglages || {})
+      };
+    }
+  }catch(e){}
+  return {
+    produits:  structuredClone(PRODUITS_DEFAUT),
+    enseignes: structuredClone(ENSEIGNES_DEFAUT),
+    releves:   structuredClone(RELEVES_DEFAUT),
+    reglages:  structuredClone(REGLAGES_DEFAUT)
+  };
+}
+function sauver(){ try{ localStorage.setItem(CLE, JSON.stringify(etat)); }catch(e){} }
+
+const eur = n => (n==null||isNaN(n)) ? "—" :
+  n.toLocaleString("fr-BE",{minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+const eur0 = n => (n==null||isNaN(n)) ? "—" :
+  Math.round(n).toLocaleString("fr-BE") + " €";
+const enseigne = id => etat.enseignes.find(e=>e.id===id);
+const produit  = id => etat.produits.find(p=>p.id===id);
+
+function jours(iso){
+  if(!iso) return null;
+  return Math.floor((Date.now() - new Date(iso+"T12:00:00").getTime())/86400000);
+}
+function dateFr(iso){
+  if(!iso) return "—";
+  return new Date(iso+"T12:00:00").toLocaleDateString("fr-BE",{day:"numeric",month:"short",year:"numeric"});
+}
+
+// Dernier relevé d'un produit chez une enseigne
+function dernier(pid, eid){
+  const l = etat.releves.filter(r=>r.produit===pid && r.enseigne===eid)
+                        .sort((a,b)=>b.date.localeCompare(a.date));
+  return l[0] || null;
+}
+// Tous les derniers relevés d'un produit, une entrée par enseigne, triés du moins cher au plus cher
+function tableau(pid){
+  return etat.enseignes.map(e=>{
+    const d = dernier(pid, e.id);
+    return d ? {enseigne:e, prix:d.prix, date:d.date, source:d.source} : null;
+  }).filter(Boolean).sort((a,b)=>a.prix-b.prix);
+}
+function plancher(pid){ const t = tableau(pid); return t.length ? t[0] : null; }
+function plafond(pid){  const t = tableau(pid); return t.length ? t[t.length-1] : null; }
+
+/* ---------- Comparer ---------- */
+function rendreListe(){
+  const el = document.getElementById("vue-liste");
+  let enjeuTotal = 0;
+
+  const cartes = etat.produits.map(p=>{
+    const t = tableau(p.id);
+    const bas = t[0], haut = t[t.length-1];
+    const compare = t.length >= 2;
+    const ecartUnite = compare ? (haut.prix - bas.prix) : 0;
+    const enjeu = ecartUnite * (p.unites || 0);
+    if(compare) enjeuTotal += enjeu;
+
+    if(!t.length){
+      return `
+      <article class="ligne vide-releve">
+        <button class="zone" data-fiche="${p.id}">
+          <p class="nom">${p.nom}</p>
+          <p class="prec">${p.precision}</p>
+          <p class="attente-txt">Aucun prix relevé</p>
+        </button>
+      </article>`;
+    }
+    const vieux = jours(bas.date) > etat.reglages.jours;
+    return `
+      <article class="ligne ${compare ? "ecart" : ""}">
+        <button class="zone" data-fiche="${p.id}">
+          <p class="nom">${p.nom}</p>
+          <p class="prec">${p.precision}</p>
+          <div class="plancher">
+            <span class="p chiffre">${eur(bas.prix)}</span>
+            <span class="chez">${bas.enseigne.nom} · ${bas.enseigne.ville}</span>
+          </div>
+          ${compare
+            ? `<p class="compare chiffre">le plus cher : ${eur(haut.prix)} chez ${haut.enseigne.nom}
+                 · ${t.length} enseignes comparées</p>
+               <p class="enjeu chiffre">${eur0(enjeu)} d'écart sur ${p.unites} unités</p>`
+            : `<p class="compare">Une seule enseigne relevée — comparez-en une deuxième</p>`}
+          ${vieux ? `<p class="attente-txt">Relevé il y a ${jours(bas.date)} jours, à rafraîchir</p>` : ""}
+        </button>
+      </article>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="bandeau">
+      <div class="gros chiffre">${eur0(enjeuTotal)}</div>
+      <div class="lab">Écart cumulé entre le moins cher et le plus cher, sur l'ensemble du parc</div>
+    </div>
+    ${cartes}
+    <div class="duo"><button class="action" id="btnReleveRapide">Noter un prix</button></div>`;
+
+  el.querySelectorAll("[data-fiche]").forEach(b=>{ b.onclick = ()=>ouvrirFiche(b.dataset.fiche); });
+  document.getElementById("btnReleveRapide").onclick = ()=>ouvrirReleve(etat.produits[0].id);
+  majResume();
+}
+
+function majResume(){
+  const releves = etat.produits.filter(p=>tableau(p.id).length).length;
+  const compares = etat.produits.filter(p=>tableau(p.id).length >= 2).length;
+  document.getElementById("resume").textContent =
+    `${etat.produits.length} lignes · ${releves} avec un prix · ${compares} comparables`;
+}
+
+/* ---------- Fiche ---------- */
+function ouvrirFiche(pid){
+  produitOuvert = pid;
+  const p = produit(pid);
+  const t = tableau(pid);
+  const dlg = document.getElementById("dlgFiche");
+
+  const classement = t.length
+    ? t.map((r,i)=>`
+        <div class="rang ${i===0?"best":""}">
+          <span class="ens">${r.enseigne.nom} · ${r.enseigne.ville}
+            <span class="quand">${dateFr(r.date)}${r.source==="web"?" · relevé en ligne":""}</span></span>
+          <span class="chiffre">${eur(r.prix)}</span>
+        </div>`).join("")
+    : `<p class="vide">Aucun prix relevé pour cette ligne.</p>`;
+
+  const manquantes = etat.enseignes.filter(e=>!dernier(pid,e.id));
+  const reste = manquantes.length
+    ? `<h2>Pas encore relevé</h2><p class="prec">${manquantes.map(e=>e.nom+" ("+e.ville+")").join(" · ")}</p>`
+    : "";
+
+  dlg.innerHTML = `
+    <h3>${p.nom}</h3>
+    <p class="sous">${p.precision} · ${p.unites} unités</p>
+    <h2>Classement des prix</h2>${classement}
+    ${reste}
+    <div class="duo">
+      <button class="action pale" id="fcFermer">Fermer</button>
+      <button class="action" id="fcReleve">Noter un prix</button>
+    </div>`;
+  dlg.showModal();
+  document.getElementById("fcFermer").onclick = ()=>dlg.close();
+  document.getElementById("fcReleve").onclick = ()=>{ dlg.close(); ouvrirReleve(pid); };
+}
+
+/* ---------- Relevé ---------- */
+function ouvrirReleve(pid){
+  produitOuvert = pid;
+  const p = produit(pid);
+  document.getElementById("rvTitre").textContent = p.nom;
+  document.getElementById("rvSous").textContent = p.precision;
+  document.getElementById("rvEnseigne").innerHTML =
+    etat.enseignes.map(e=>`<option value="${e.id}">${e.nom} · ${e.ville}</option>`).join("");
+  document.getElementById("rvPrix").value = "";
+  document.getElementById("rvDate").value = new Date().toISOString().slice(0,10);
+  document.getElementById("dlgReleve").showModal();
+  setTimeout(()=>document.getElementById("rvPrix").focus(), 60);
+}
+document.getElementById("rvAnnuler").onclick = ()=>document.getElementById("dlgReleve").close();
+document.getElementById("rvEnregistrer").onclick = ()=>{
+  const prix = parseFloat(String(document.getElementById("rvPrix").value).replace(",","."));
+  const date = document.getElementById("rvDate").value;
+  if(isNaN(prix) || prix <= 0 || !date){ document.getElementById("rvPrix").focus(); return; }
+  etat.releves.push({
+    produit: produitOuvert,
+    enseigne: document.getElementById("rvEnseigne").value,
+    prix, date, source:"magasin"
+  });
+  sauver();
+  document.getElementById("dlgReleve").close();
+  rendreTout();
+};
+
+/* ---------- Déplacement ---------- */
+function rendrePanier(){
+  const el = document.getElementById("vue-panier");
+  const blocs = etat.enseignes.map(e=>{
+    let gain = 0, articles = [];
+    etat.produits.forEach(p=>{
+      const d = dernier(p.id, e.id);
+      const haut = plafond(p.id);
+      const bas = plancher(p.id);
+      // On ne compte que si cette enseigne EST la moins chère de la ligne
+      if(d && bas && haut && d.enseigne.id === e.id && haut.prix > d.prix){
+        gain += (haut.prix - d.prix);
+        articles.push(p.nom);
+      }
+    });
+    const trajet = e.km * 2 * etat.reglages.coutKm;
+    const seuil = e.pays === "FR" ? etat.reglages.seuilFR : etat.reglages.seuilBE;
+    const net = gain - trajet;
+    return {e, gain, articles, trajet, net, vautLeCoup: gain >= seuil && net > 0};
+  }).filter(b=>b.articles.length).sort((a,b)=>b.net-a.net);
+
+  if(!blocs.length){
+    el.innerHTML = `<p class="vide">Rien à comparer pour l'instant.<br>
+      Relevez le même produit chez deux enseignes et le calcul s'active.</p>`;
+    return;
+  }
+  el.innerHTML = `<p class="note" style="margin:0 0 12px">
+      Gain par unité si vous achetez ici plutôt qu'au prix le plus élevé relevé.
+      Multipliez par le nombre d'unités à équiper.</p>` +
+    blocs.map(b=>`
+    <article class="verdict ${b.vautLeCoup?"oui":""}">
+      <div class="en">${b.e.nom}</div>
+      <div class="km">${b.e.ville} · ${b.e.km} km aller · moins cher sur ${b.articles.length} ligne${b.articles.length>1?"s":""}</div>
+      <div class="calc chiffre">Gain à l'unité <b>${eur(b.gain)}</b> — trajet ${eur(b.trajet)}</div>
+      <p class="dit ${b.vautLeCoup?"":"non"}">
+        ${b.vautLeCoup ? "Le déplacement se justifie dès quelques pièces" : "À grouper avec d'autres achats"}
+      </p>
+    </article>`).join("");
+}
+
+/* ---------- Réglages ---------- */
+function rendreReglages(){
+  const el = document.getElementById("vue-reglages");
+  el.innerHTML = `
+    <h2>Parc et déplacement</h2>
+    <label for="cfUnites">Nombre d'unités à équiper</label>
+    <input id="cfUnites" type="number" step="1" min="1" value="${etat.produits[0].unites}">
+    <label for="cfKm">Coût au kilomètre (€)</label>
+    <input id="cfKm" type="number" step="0.01" min="0" value="${etat.reglages.coutKm}">
+    <label for="cfJ">Un relevé est périmé après (jours)</label>
+    <input id="cfJ" type="number" step="1" min="1" value="${etat.reglages.jours}">
+    <div class="duo"><button class="action" id="cfEnr">Enregistrer</button></div>
+
+    <h2>Distances depuis Mons</h2>
+    ${etat.enseignes.map(e=>`
+      <div class="rang">
+        <span class="ens">${e.nom}<span class="quand">${e.ville} · ${e.pays}</span></span>
+        <input style="width:84px;font-size:15px;padding:6px 8px" type="number" min="0" step="1"
+               value="${e.km}" data-km="${e.id}">
+      </div>`).join("")}
+
+    <h2>Données</h2>
+    <div class="duo">
+      <button class="action pale" id="cfExport">Exporter</button>
+      <button class="action pale" id="cfImport">Importer</button>
+    </div>
+    <p class="note">
+      Suivi Promo v${VERSION}. Les données restent sur l'iPhone.
+      Exportez le fichier dans OneDrive, dossier « Suivi Promo ».
+      ${etat.releves.length} relevé${etat.releves.length>1?"s":""} enregistré${etat.releves.length>1?"s":""}.
+      Les quatre premiers proviennent d'un relevé en ligne du 8 septembre 2026 : à confirmer en magasin.
+    </p>
+    <input id="cfFichier" type="file" accept="application/json" hidden>`;
+
+  document.getElementById("cfEnr").onclick = ()=>{
+    const u = parseInt(document.getElementById("cfUnites").value) || 1;
+    etat.produits.forEach(p=>p.unites = u);
+    etat.reglages.coutKm = parseFloat(document.getElementById("cfKm").value) || 0;
+    etat.reglages.jours  = parseInt(document.getElementById("cfJ").value)   || 90;
+    sauver(); rendreTout();
+  };
+  el.querySelectorAll("[data-km]").forEach(inp=>{
+    inp.onchange = ()=>{ enseigne(inp.dataset.km).km = parseFloat(inp.value)||0; sauver(); };
+  });
+  document.getElementById("cfExport").onclick = ()=>{
+    const blob = new Blob([JSON.stringify(etat,null,2)],{type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "suivi-promo-" + new Date().toISOString().slice(0,10) + ".json";
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  };
+  document.getElementById("cfImport").onclick = ()=>document.getElementById("cfFichier").click();
+  document.getElementById("cfFichier").onchange = ev=>{
+    const f = ev.target.files[0]; if(!f) return;
+    const lect = new FileReader();
+    lect.onload = ()=>{
+      try{
+        const d = JSON.parse(lect.result);
+        if(!d.produits || !d.enseignes) throw new Error("format");
+        etat = {produits:d.produits, enseignes:d.enseignes, releves:d.releves||[],
+                reglages:Object.assign({},REGLAGES_DEFAUT,d.reglages||{})};
+        sauver(); rendreTout();
+      }catch(err){ alert("Ce fichier n'est pas un export Suivi Promo."); }
+    };
+    lect.readAsText(f);
+  };
+}
+
+/* ---------- Navigation ---------- */
+document.querySelectorAll("nav button").forEach(b=>{
+  b.onclick = ()=>{
+    vue = b.dataset.vue;
+    document.querySelectorAll("nav button").forEach(x=>
+      x.setAttribute("aria-selected", x===b ? "true":"false"));
+    rendreTout();
+  };
+});
+function rendreTout(){
+  document.getElementById("vue-liste").hidden    = vue!=="liste";
+  document.getElementById("vue-panier").hidden   = vue!=="panier";
+  document.getElementById("vue-reglages").hidden = vue!=="reglages";
+  if(vue==="liste")    rendreListe();
+  if(vue==="panier"){  rendrePanier(); majResume(); }
+  if(vue==="reglages"){rendreReglages(); majResume(); }
+}
+rendreTout();
+</script>
+</body>
+</html>
