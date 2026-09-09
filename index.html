@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v1.6</title>
+<title>Suivi Promo v1.7</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -101,6 +101,10 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 .bandeau .gros{font-size:24px;font-weight:600;color:var(--gain)}
 .bandeau .lab{font-size:13px;color:var(--sourdine)}
 
+.etat{margin-top:10px;padding:10px 12px;border-radius:var(--r);font-size:13px;
+  line-height:1.45;word-break:break-all}
+.etat-ok{background:var(--gain-fond);color:var(--gain);font-weight:600}
+.etat-ko{background:var(--alerte-fond);color:var(--alerte);font-weight:600}
 .journal{background:var(--carte);border:1px solid var(--trait);border-radius:var(--r);
   padding:12px 14px;margin-top:14px;font-size:13px;line-height:1.5;
   white-space:pre-wrap;word-break:break-word;max-height:280px;overflow:auto}
@@ -112,7 +116,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v1.6</span></h1>
+  <h1>Suivi Promo<span class="v">v1.7</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -166,8 +170,9 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "1.6";
-const CLE = "suivi-promo-v16";
+const VERSION = "1.7";
+const CLE = "suivi-promo";
+const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
 const ENSEIGNES_DEFAUT = [
   {id:"bricoplanit", nom:"BricoPlanit",   ville:"Ghlin",                   km:3,  pays:"BE"},
@@ -210,10 +215,22 @@ const REGLAGES_DEFAUT = {coutKm:0.25, seuilBE:15, seuilFR:60, jours:90, webhook:
 let etat = charger();
 let vue = "liste";
 let produitOuvert = null;
+let lignesJournal = [];
 
+function lireBrut(){
+  try{
+    const a = localStorage.getItem(CLE);
+    if(a) return a;
+    for(const k of CLES_ANCIENNES){
+      const v = localStorage.getItem(k);
+      if(v){ try{ localStorage.setItem(CLE, v); }catch(e){} return v; }
+    }
+  }catch(e){}
+  return null;
+}
 function charger(){
   try{
-    const brut = localStorage.getItem(CLE);
+    const brut = lireBrut();
     if(brut){
       const d = JSON.parse(brut);
       return {
@@ -502,11 +519,18 @@ function rendreReglages(){
 
 /* ---------- Make ---------- */
 function journal(txt, ok){
-  const j = document.getElementById("mkJournal");
-  if(!j) return;
   const h = new Date().toLocaleTimeString("fr-BE",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
   const cls = ok===true ? "ok" : (ok===false ? "ko" : "");
-  j.innerHTML = `<span class="${cls}">[${h}] ${txt}</span>\n` + j.innerHTML;
+  lignesJournal.unshift({h, txt, cls});
+  if(lignesJournal.length > 40) lignesJournal.length = 40;
+  afficherJournal();
+}
+function afficherJournal(){
+  const j = document.getElementById("mkJournal");
+  if(!j) return;
+  j.innerHTML = lignesJournal.length
+    ? lignesJournal.map(l=>`<span class="${l.cls}">[${l.h}] ${l.txt}</span>`).join("\n")
+    : "En attente d'un envoi.";
 }
 
 // Structure complète attendue en production : tous les champs présents,
@@ -610,6 +634,7 @@ function rendreMake(){
       <option value="GET"  ${etat.reglages.methode==="GET"?"selected":""}>GET (si POST est bloqué)</option>
     </select>
     <div class="duo"><button class="action" id="mkEnr">Enregistrer l'adresse</button></div>
+    <div id="mkEtat" class="etat"></div>
 
     <h2>Collecte</h2>
     <button class="action" id="mkGo">Lancer la collecte maintenant</button>
@@ -625,18 +650,44 @@ function rendreMake(){
     <button class="action pale solo" id="mkT3">Envoyer ce texte</button>
 
     <h2>Journal</h2>
-    <div class="journal" id="mkJournal">En attente d'un envoi.</div>
+    <div class="journal" id="mkJournal"></div>
     <p class="note">Le bouton 1 envoie les 30 champs de production, tous au premier niveau et tous
       renseignés. Un seul envoi suffit donc à créer la structure complète du webhook :
       n'utilisez « Detect new values » qu'avec ce bouton-là, car chaque détection remplace
       la structure au lieu de l'enrichir.</p>`;
 
-  document.getElementById("mkEnr").onclick=()=>{
-    etat.reglages.webhook = document.getElementById("mkUrl").value.trim();
-    etat.reglages.methode = document.getElementById("mkMethode").value;
+  function enregistrerAdresse(silencieux){
+    const u = document.getElementById("mkUrl").value.trim();
+    const m = document.getElementById("mkMethode").value;
+    const change = (u !== etat.reglages.webhook) || (m !== etat.reglages.methode);
+    etat.reglages.webhook = u;
+    etat.reglages.methode = m;
     sauver();
-    journal(etat.reglages.webhook ? "Adresse enregistrée" : "Adresse effacée", !!etat.reglages.webhook);
-  };
+    const relu = lireBrut();
+    const confirme = relu && JSON.parse(relu).reglages.webhook === u;
+    afficherEtatAdresse();
+    if(!silencieux || change){
+      journal(!u ? "Adresse effacée"
+        : (confirme ? "Adresse enregistrée et relue depuis la mémoire de l'iPhone"
+                    : "Adresse prise en compte mais NON conservée par le navigateur"),
+        !u ? false : !!confirme);
+    }
+  }
+  function afficherEtatAdresse(){
+    const e = document.getElementById("mkEtat");
+    if(!e) return;
+    const u = etat.reglages.webhook;
+    e.className = "etat " + (u ? "etat-ok" : "etat-ko");
+    e.textContent = u
+      ? "Adresse active en " + (etat.reglages.methode||"POST") + " : " + u
+      : "Aucune adresse enregistrée — les envois sont impossibles";
+  }
+  afficherEtatAdresse();
+  afficherJournal();
+  document.getElementById("mkEnr").onclick=()=>enregistrerAdresse(false);
+  document.getElementById("mkUrl").onchange=()=>enregistrerAdresse(true);
+  document.getElementById("mkUrl").onblur=()=>enregistrerAdresse(true);
+  document.getElementById("mkMethode").onchange=()=>enregistrerAdresse(true);
   document.getElementById("mkT1").onclick=()=>{
     envoyer(messageComplet({
       action: "structure",
