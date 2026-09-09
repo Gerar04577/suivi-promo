@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v1.5</title>
+<title>Suivi Promo v1.6</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -112,7 +112,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v1.5</span></h1>
+  <h1>Suivi Promo<span class="v">v1.6</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -166,8 +166,8 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "1.5";
-const CLE = "suivi-promo-v15";
+const VERSION = "1.6";
+const CLE = "suivi-promo-v16";
 
 const ENSEIGNES_DEFAUT = [
   {id:"bricoplanit", nom:"BricoPlanit",   ville:"Ghlin",                   km:3,  pays:"BE"},
@@ -511,27 +511,51 @@ function journal(txt, ok){
 
 // Structure complète attendue en production : tous les champs présents,
 // même vides, pour que Make les enregistre au premier appel.
-function gabaritOffre(pid, eid, prix){
-  const p = produit(pid) || {id:"", nom:"", precision:""};
-  const e = enseigne(eid) || {id:"", nom:"", ville:"", pays:"", km:0};
-  return {
+// Message unique et entièrement à plat : Make ne descend pas dans les objets
+// imbriqués, tous les champs doivent donc être au premier niveau.
+// Les champs vides sont présents volontairement : c'est ce qui les rend
+// mappables dans les modules suivants.
+function messageComplet(surcharge){
+  const p = etat.produits[0]  || {id:"", nom:"", precision:"", unites:0};
+  const e = etat.enseignes[0] || {id:"", nom:"", ville:"", pays:"", km:0};
+  const base = {
+    app: "suivi-promo",
+    version: VERSION,
+    action: "structure",
+    origine: "bouton",
+    envoye_le: new Date().toISOString(),
+    date_du_jour: aujourdhui(),
+
     produit_id: p.id,
     produit_nom: p.nom,
     produit_precision: p.precision,
+    produit_unites: p.unites,
+
     enseigne_id: e.id,
     enseigne_nom: e.nom,
     enseigne_ville: e.ville,
     enseigne_pays: e.pays,
     enseigne_km: e.km,
-    prix: prix,
+
+    prix: 0,
     prix_avant: 0,
     remise_pct: 0,
     date_debut: aujourdhui(),
     date_fin: "",
     url_offre: "",
-    source: "test",
-    commentaire: ""
+    source: "",
+    commentaire: "",
+
+    liste_produits: etat.produits.map(x=>x.id).join(","),
+    liste_enseignes: etat.enseignes.map(x=>x.id).join(","),
+    nombre_produits: etat.produits.length,
+    nombre_enseignes: etat.enseignes.length,
+
+    destinataires: "jemagerard@gmail.com,jujugerard@gmail.com",
+    envoyer_courriel: "non",
+    texte_libre: ""
   };
+  return Object.assign(base, surcharge || {});
 }
 
 async function envoyer(charge, libelle){
@@ -594,17 +618,18 @@ function rendreMake(){
       du fichier sur OneDrive, envoi du courriel de synthèse.</p>
 
     <h2>Envois de test</h2>
-    <button class="action pale solo" id="mkT1">1 · Envoyer une offre complète</button>
-    <button class="action pale solo" id="mkT2">2 · Envoyer les 11 lignes</button>
+    <button class="action pale solo" id="mkT1">1 · Envoyer la structure complète</button>
+    <button class="action pale solo" id="mkT2">2 · Envoyer la liste des lignes</button>
     <label for="mkTexte">3 · Texte libre à faire analyser</label>
     <textarea id="mkTexte" placeholder="Collez ici un extrait de folder ou d'e-mail promo"></textarea>
     <button class="action pale solo" id="mkT3">Envoyer ce texte</button>
 
     <h2>Journal</h2>
     <div class="journal" id="mkJournal">En attente d'un envoi.</div>
-    <p class="note">Le premier envoi doit être l'offre complète : elle contient tous les champs
-      attendus en production, même vides, pour que Make enregistre la structure et vous les
-      propose dans les modules suivants.</p>`;
+    <p class="note">Le bouton 1 envoie les 30 champs de production, tous au premier niveau et tous
+      renseignés. Un seul envoi suffit donc à créer la structure complète du webhook :
+      n'utilisez « Detect new values » qu'avec ce bouton-là, car chaque détection remplace
+      la structure au lieu de l'enrichir.</p>`;
 
   document.getElementById("mkEnr").onclick=()=>{
     etat.reglages.webhook = document.getElementById("mkUrl").value.trim();
@@ -613,45 +638,29 @@ function rendreMake(){
     journal(etat.reglages.webhook ? "Adresse enregistrée" : "Adresse effacée", !!etat.reglages.webhook);
   };
   document.getElementById("mkT1").onclick=()=>{
-    envoyer({
-      app:"suivi-promo", version:VERSION, action:"offre",
-      envoye_le: new Date().toISOString(),
-      offre: gabaritOffre(etat.produits[0] ? etat.produits[0].id : null, etat.enseignes[0] ? etat.enseignes[0].id : null, 99.95)
-    }, "offre complète");
+    envoyer(messageComplet({
+      action: "structure",
+      prix: 99.95, prix_avant: 139, remise_pct: 28,
+      date_fin: aujourdhui(), url_offre: "https://exemple",
+      source: "test", commentaire: "envoi de structure",
+      texte_libre: "exemple"
+    }), "structure complète");
   };
   document.getElementById("mkT2").onclick=()=>{
-    envoyer({
-      app:"suivi-promo", version:VERSION, action:"liste",
-      envoye_le: new Date().toISOString(),
-      nombre: etat.produits.length,
-      produits: etat.produits.map(p=>({id:p.id, nom:p.nom, precision:p.precision, unites:p.unites})),
-      enseignes: etat.enseignes
-    }, "les 11 lignes");
+    envoyer(messageComplet({action:"liste", source:"liste"}), "la liste des lignes");
   };
   document.getElementById("mkGo").onclick=async (ev)=>{
     const b = ev.currentTarget;
     b.disabled = true;
     b.textContent = "Collecte en cours…";
-    await envoyer({
-      app:"suivi-promo", version:VERSION, action:"collecte",
-      envoye_le: new Date().toISOString(),
-      origine: "bouton",
-      enseignes: etat.enseignes.map(e=>e.id).join(","),
-      produits: etat.produits.map(p=>p.id).join(","),
-      destinataires: "jemagerard@gmail.com,jujugerard@gmail.com",
-      envoyer_courriel: "oui"
-    }, "collecte à la demande");
+    await envoyer(messageComplet({action:"collecte", envoyer_courriel:"oui"}), "collecte à la demande");
     b.disabled = false;
     b.textContent = "Lancer la collecte maintenant";
   };
   document.getElementById("mkT3").onclick=()=>{
     const t = document.getElementById("mkTexte").value.trim();
     if(!t){ journal("Le champ de texte est vide", false); return; }
-    envoyer({
-      app:"suivi-promo", version:VERSION, action:"texte",
-      envoye_le: new Date().toISOString(),
-      contenu: t
-    }, "texte libre");
+    envoyer(messageComplet({action:"texte", texte_libre:t}), "texte libre");
   };
 }
 
