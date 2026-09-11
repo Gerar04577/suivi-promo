@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v2.0</title>
+<title>Suivi Promo v2.1</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -126,7 +126,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v2.0</span></h1>
+  <h1>Suivi Promo<span class="v">v2.1</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -182,7 +182,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "2.0";
+const VERSION = "2.1";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -232,8 +232,9 @@ const AUTHORITY  = "https://login.microsoftonline.com/consumers/oauth2/v2.0";
 const SCOPES     = "Files.Read Files.ReadWrite.AppFolder User.Read offline_access";
 const GRAPH      = "https://graph.microsoft.com/v1.0";
 
-// Fichier alimenté par Make, jamais écrasé : chaque collecte s'y ajoute.
-const FICHIER_COLLECTES = "/me/drive/root:/Suivi Promo/collectes.json:/content";
+// Make dépose un fichier par collecte : 2026-09-11-eldi.json
+// Rien n'est jamais écrasé, et une collecte ratée n'abîme que son fichier.
+const DOSSIER_COLLECTES = "/me/drive/root:/Suivi Promo:/children";
 
 const REGLAGES_DEFAUT = {coutKm:0.25, seuilBE:15, seuilFR:60, jours:90, webhook:"", methode:"POST"};
 
@@ -838,13 +839,38 @@ async function graph(chemin, deja){
 }
 
 /* ---------- Offres collectées ---------- */
+// Le nom du fichier porte la date et l'enseigne : 2026-09-11-eldi.json
+function lireNomFichier(nom){
+  const m = (nom||"").match(/^(\d{4}-\d{2}-\d{2})-(.+)\.json$/i);
+  return m ? { date:m[1], enseigne:m[2].toLowerCase() } : { date:"", enseigne:"" };
+}
+
 async function chargerCollectes(){
   chargementOffres = "en cours";
+  collectes = [];
   rendreOffres();
   try{
-    const d = await graph(FICHIER_COLLECTES);
-    collectes = Array.isArray(d) ? d : (d ? [d] : []);
-    chargementOffres = collectes.length ? "" : "vide";
+    const dossier = await graph(DOSSIER_COLLECTES);
+    const fichiers = ((dossier && dossier.value) || [])
+      .filter(f => f.file && /\.json$/i.test(f.name))
+      .sort((a,b) => b.name.localeCompare(a.name));
+
+    if(!fichiers.length){ chargementOffres = "vide"; rendreOffres(); return; }
+
+    const lots = [];
+    for(const f of fichiers){
+      const info = lireNomFichier(f.name);
+      try{
+        const contenu = await graph("/me/drive/items/" + f.id + "/content");
+        const offres = Array.isArray(contenu) ? contenu
+                     : (contenu && Array.isArray(contenu.offres) ? contenu.offres : []);
+        lots.push({ date:info.date, enseigne:info.enseigne, fichier:f.name, offres });
+      }catch(e){
+        lots.push({ date:info.date, enseigne:info.enseigne, fichier:f.name, offres:[], erreur:e.message });
+      }
+    }
+    collectes = lots;
+    chargementOffres = lots.some(l=>l.offres.length) ? "" : "vide";
   }catch(err){
     chargementOffres = "erreur: " + err.message;
     collectes = [];
@@ -884,7 +910,8 @@ function rendreOffres(){
     el.innerHTML = `
       <h2>Offres collectées</h2>
       <p class="note" style="margin:0 0 14px">Les promotions relevées par Make sont
-        déposées dans votre OneDrive, dossier Suivi Promo. Connectez-vous pour les lire.</p>
+        déposées dans votre OneDrive, dossier Suivi Promo, un fichier par collecte.
+        Connectez-vous pour les lire.</p>
       <div class="duo"><button class="action" id="ofConnexion">Se connecter à OneDrive</button></div>`;
     document.getElementById("ofConnexion").onclick = connexion;
     return;
@@ -920,7 +947,7 @@ function rendreOffres(){
   if(!toutes.length){
     el.innerHTML = `
       <p class="vide">Aucune offre pour l'instant.<br>
-      Le fichier sera créé à la première collecte lancée depuis l'onglet Make.</p>${tete}`;
+      Le dossier Suivi Promo se remplira à la première collecte lancée depuis l'onglet Make.</p>${tete}`;
     brancherOffres();
     return;
   }
@@ -955,7 +982,8 @@ function rendreOffres(){
     <div class="bandeau">
       <div class="gros chiffre">${toutes.length}</div>
       <div class="lab">offres collectées · ${liees} rattachées à vos lignes ·
-        ${collectes.length} collecte${collectes.length>1?"s":""}</div>
+        ${collectes.length} collecte${collectes.length>1?"s":""}${
+        collectes.filter(c=>c.erreur).length ? " · " + collectes.filter(c=>c.erreur).length + " fichier(s) illisible(s)" : ""}</div>
     </div>
     ${cartes}${tete}`;
   brancherOffres();
