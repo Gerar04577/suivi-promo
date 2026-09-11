@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v1.7</title>
+<title>Suivi Promo v2.0</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -101,6 +101,16 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 .bandeau .gros{font-size:24px;font-weight:600;color:var(--gain)}
 .bandeau .lab{font-size:13px;color:var(--sourdine)}
 
+.offre{background:var(--carte);border:1px solid var(--trait);border-radius:var(--r);
+  padding:11px 13px;margin-bottom:8px}
+.offre .t1{font-size:14.5px;font-weight:600}
+.offre .t2{font-size:12.5px;color:var(--sourdine);margin:2px 0 7px}
+.offre .p{font-size:18px;font-weight:600}
+.offre .avant{font-size:13px;color:var(--sourdine);text-decoration:line-through;margin-left:8px}
+.offre .bas{font-size:12px;color:var(--sourdine);margin-top:6px}
+.offre.lie{border-left:5px solid var(--gain);padding-left:9px}
+.pastille{float:right;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:20px;
+  background:var(--gain-fond);color:var(--gain)}
 .etat{margin-top:10px;padding:10px 12px;border-radius:var(--r);font-size:13px;
   line-height:1.45;word-break:break-all}
 .etat-ok{background:var(--gain-fond);color:var(--gain);font-weight:600}
@@ -116,7 +126,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v1.7</span></h1>
+  <h1>Suivi Promo<span class="v">v2.0</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -124,6 +134,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
   <button role="tab" aria-selected="true" data-vue="liste">Comparer</button>
   <button role="tab" aria-selected="false" data-vue="panier">Trajet</button>
   <button role="tab" aria-selected="false" data-vue="reglages">Réglages</button>
+  <button role="tab" aria-selected="false" data-vue="offres">Offres</button>
   <button role="tab" aria-selected="false" data-vue="make">Make</button>
 </nav>
 
@@ -131,6 +142,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
   <section id="vue-liste"></section>
   <section id="vue-panier" hidden></section>
   <section id="vue-reglages" hidden></section>
+  <section id="vue-offres" hidden></section>
   <section id="vue-make" hidden></section>
 </main>
 
@@ -170,7 +182,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "1.7";
+const VERSION = "2.0";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -190,17 +202,18 @@ const ENSEIGNES_DEFAUT = [
 ];
 
 const PRODUITS_DEFAUT = [
-  {id:"p01", nom:"Mitigeur lavabo",         precision:"cartouche 35 mm",            unites:50},
-  {id:"p02", nom:"Mitigeur évier",          precision:"cartouche 35 mm, bec bas",   unites:50},
-  {id:"p03", nom:"Mitigeur douche",         precision:"mécanique, cartouche 35 mm", unites:50},
-  {id:"p04", nom:"Douchette et flexible",   precision:"flexible 1,5 m, 1 jet",      unites:50},
-  {id:"p05", nom:"Robinet d'arrêt équerre", precision:"avec flexible inox",         unites:50},
-  {id:"p06", nom:"Peinture lavable",        precision:"blanc mat, seau 10 L",       unites:50},
-  {id:"p07", nom:"Peinture antifongique",   precision:"blanc satiné, 2,5 L",        unites:50},
-  {id:"p08", nom:"Extracteur silencieux",   precision:"Ø 100, sous 30 dB",          unites:50},
-  {id:"p09", nom:"Hotte de cuisine",        precision:"60 cm, recyclage",           unites:50},
-  {id:"p10", nom:"Radiateur 1500 W",        precision:"thermostat électronique",    unites:50},
-  {id:"p11", nom:"Réfrigérateur table top", precision:"90 à 130 L",                 unites:50}
+  {id:"p01", nom:"Mitigeur lavabo",         precision:"cartouche 35 mm",            unites:50, motscles:"mitigeur lavabo robinet", exclure:"evier douche cuisine"},
+  {id:"p02", nom:"Mitigeur évier",          precision:"cartouche 35 mm, bec bas",   unites:50, motscles:"mitigeur evier robinet cuisine", exclure:"lavabo douche"},
+  {id:"p03", nom:"Mitigeur douche",         precision:"mécanique, cartouche 35 mm", unites:50, motscles:"mitigeur douche colonne", exclure:"lavabo evier thermostatique"},
+  {id:"p04", nom:"Douchette et flexible",   precision:"flexible 1,5 m, 1 jet",      unites:50, motscles:"douchette flexible pommeau", exclure:"robinet mitigeur"},
+  {id:"p05", nom:"Robinet d'arrêt équerre", precision:"avec flexible inox",         unites:50, motscles:"robinet arret equerre vanne", exclure:"mitigeur lavabo douche"},
+  {id:"p06", nom:"Peinture lavable",        precision:"blanc mat, seau 10 L",       unites:50, motscles:"peinture mur plafond latex acrylique", exclure:"antifongique bois metal sol"},
+  {id:"p07", nom:"Peinture antifongique",   precision:"blanc satiné, 2,5 L",        unites:50, motscles:"peinture antifongique antimoisissure salle de bain", exclure:"mur plafond sol bois"},
+  {id:"p08", nom:"Extracteur silencieux",   precision:"Ø 100, sous 30 dB",          unites:50, motscles:"extracteur ventilateur aerateur ventilation", exclure:"jus centrifugeuse fruit hotte"},
+  {id:"p09", nom:"Hotte de cuisine",        precision:"60 cm, recyclage",           unites:50, motscles:"hotte aspirante cuisine", exclure:"filtre extracteur"},
+  {id:"p10", nom:"Radiateur 1500 W",        precision:"thermostat électronique",    unites:50, motscles:"radiateur convecteur chauffage panneau rayonnant", exclure:"seche serviette eau"},
+  {id:"p11", nom:"Réfrigérateur table top", precision:"90 à 130 L",                 unites:50, motscles:"refrigerateur frigo", exclure:"congelateur combine americain lave cuisson encastrable"},
+  {id:"p12", nom:"Plaque de cuisson",      precision:"induction posable, 2 feux",  unites:50, motscles:"plaque cuisson induction taque rechaud", exclure:"four hotte micro gaz encastrable"}
 ];
 
 const RELEVES_DEFAUT = [
@@ -210,12 +223,26 @@ const RELEVES_DEFAUT = [
   {produit:"p06", enseigne:"gamma",       prix:61.12,  date:"2026-09-08", source:"web"}
 ];
 
+/* ---- Accès OneDrive : OAuth 2.0 + PKCE, sans librairie externe.
+   Même inscription Azure que VeroS ; seule l'adresse de redirection
+   change et doit être ajoutée côté Microsoft. ---- */
+const CLIENT_ID = "09e34faa-d6e7-4ea8-a049-59f92ce67cf3";
+const REDIRECT   = "https://gerar04577.github.io/suivi-promo/";
+const AUTHORITY  = "https://login.microsoftonline.com/consumers/oauth2/v2.0";
+const SCOPES     = "Files.Read Files.ReadWrite.AppFolder User.Read offline_access";
+const GRAPH      = "https://graph.microsoft.com/v1.0";
+
+// Fichier alimenté par Make, jamais écrasé : chaque collecte s'y ajoute.
+const FICHIER_COLLECTES = "/me/drive/root:/Suivi Promo/collectes.json:/content";
+
 const REGLAGES_DEFAUT = {coutKm:0.25, seuilBE:15, seuilFR:60, jours:90, webhook:"", methode:"POST"};
 
 let etat = charger();
 let vue = "liste";
 let produitOuvert = null;
 let lignesJournal = [];
+let collectes = [];
+let chargementOffres = "";
 
 function lireBrut(){
   try{
@@ -715,6 +742,232 @@ function rendreMake(){
   };
 }
 
+
+/* =========================================================
+   Connexion Microsoft — repris de VeroS, mécanique éprouvée
+   ========================================================= */
+function jeton(){ return sessionStorage.getItem("sp_token"); }
+function poserJeton(t, refresh){
+  sessionStorage.setItem("sp_token", t);
+  if(refresh) sessionStorage.setItem("sp_refresh", refresh);
+  sessionStorage.setItem("sp_scopes", SCOPES);
+}
+function jetonPerime(){
+  return jeton() && sessionStorage.getItem("sp_scopes") !== SCOPES;
+}
+function oublier(){
+  ["sp_token","sp_refresh","sp_scopes","sp_verifier"].forEach(k=>sessionStorage.removeItem(k));
+  location.href = REDIRECT;
+}
+function chaineAleatoire(n){
+  const a = new Uint8Array(n); crypto.getRandomValues(a);
+  return Array.from(a, b => ("0"+b.toString(16)).slice(-2)).join("");
+}
+function b64url(buf){
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+async function defiDepuis(v){
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
+  return b64url(d);
+}
+async function connexion(){
+  const verifier = chaineAleatoire(48);
+  sessionStorage.setItem("sp_verifier", verifier);
+  const defi = await defiDepuis(verifier);
+  location.href = AUTHORITY + "/authorize"
+    + "?client_id=" + encodeURIComponent(CLIENT_ID)
+    + "&response_type=code"
+    + "&redirect_uri=" + encodeURIComponent(REDIRECT)
+    + "&scope=" + encodeURIComponent(SCOPES)
+    + "&code_challenge=" + defi
+    + "&code_challenge_method=S256";
+}
+async function echangerCode(code){
+  const verifier = sessionStorage.getItem("sp_verifier");
+  if(!verifier) throw new Error("Session expirée. Reconnectez-vous.");
+  const r = await fetch(AUTHORITY + "/token", {
+    method:"POST", cache:"no-store",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body: new URLSearchParams({
+      client_id: CLIENT_ID, grant_type:"authorization_code",
+      code: code, redirect_uri: REDIRECT, code_verifier: verifier
+    }).toString()
+  });
+  const d = await r.json();
+  if(!r.ok) throw new Error(d.error_description || "Connexion refusée par Microsoft.");
+  poserJeton(d.access_token, d.refresh_token);
+  sessionStorage.removeItem("sp_verifier");
+}
+async function rafraichirJeton(){
+  const refresh = sessionStorage.getItem("sp_refresh");
+  if(!refresh) return false;
+  try{
+    const r = await fetch(AUTHORITY + "/token", {
+      method:"POST", cache:"no-store",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body: new URLSearchParams({
+        client_id: CLIENT_ID, grant_type:"refresh_token",
+        refresh_token: refresh, scope: SCOPES
+      }).toString()
+    });
+    if(!r.ok) return false;
+    const d = await r.json();
+    if(!d.access_token) return false;
+    poserJeton(d.access_token, d.refresh_token || refresh);
+    return true;
+  }catch(e){ return false; }
+}
+async function graph(chemin, deja){
+  const r = await fetch(chemin.startsWith("http") ? chemin : GRAPH + chemin, {
+    cache:"no-store",
+    headers:{ Authorization: "Bearer " + jeton() }
+  });
+  if(r.status === 401 && !deja){
+    if(await rafraichirJeton()) return graph(chemin, true);
+    throw new Error("Session expirée. Reconnectez-vous.");
+  }
+  if(r.status === 404) return null;
+  if(!r.ok){
+    const e = await r.json().catch(()=>({}));
+    throw new Error((e.error && e.error.message) || ("Erreur Microsoft " + r.status));
+  }
+  const txt = await r.text();
+  if(!txt) return null;
+  try{ return JSON.parse(txt); }catch(e){ throw new Error("Le fichier de collectes n'est pas lisible."); }
+}
+
+/* ---------- Offres collectées ---------- */
+async function chargerCollectes(){
+  chargementOffres = "en cours";
+  rendreOffres();
+  try{
+    const d = await graph(FICHIER_COLLECTES);
+    collectes = Array.isArray(d) ? d : (d ? [d] : []);
+    chargementOffres = collectes.length ? "" : "vide";
+  }catch(err){
+    chargementOffres = "erreur: " + err.message;
+    collectes = [];
+  }
+  rendreOffres();
+}
+
+// Rapproche une offre d'une ligne de la liste, par mots du nom du produit.
+function sansAccents(t){
+  return (t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+}
+function ligneCorrespondante(offre){
+  const texte = sansAccents((offre.produit||"") + " " + (offre.modele||"") + " " + (offre.marque||""));
+  let trouve = null, meilleur = 0;
+  etat.produits.forEach(p=>{
+    const ex = sansAccents(p.exclure).split(/\s+/).filter(Boolean);
+    if(ex.some(m => texte.includes(m))) return;
+    const mots = sansAccents(p.motscles || p.nom).split(/\s+/).filter(m=>m.length>3);
+    const n = mots.filter(m=>texte.includes(m)).length;
+    if(n > meilleur){ meilleur = n; trouve = p; }
+  });
+  return trouve;
+}
+
+function prixOffre(o){
+  const v = Number(o.prix);
+  if(!isFinite(v)) return null;
+  // Les folders écrivent les prix sans séparateur : 6995 vaut 69,95 €
+  return v > 1000 ? v/100 : v;
+}
+
+function rendreOffres(){
+  const el = document.getElementById("vue-offres");
+  if(!el) return;
+
+  if(!jeton()){
+    el.innerHTML = `
+      <h2>Offres collectées</h2>
+      <p class="note" style="margin:0 0 14px">Les promotions relevées par Make sont
+        déposées dans votre OneDrive, dossier Suivi Promo. Connectez-vous pour les lire.</p>
+      <div class="duo"><button class="action" id="ofConnexion">Se connecter à OneDrive</button></div>`;
+    document.getElementById("ofConnexion").onclick = connexion;
+    return;
+  }
+
+  if(chargementOffres === "en cours"){
+    el.innerHTML = `<p class="vide">Lecture du fichier de collectes…</p>`;
+    return;
+  }
+
+  const toutes = [];
+  collectes.forEach(c=>{
+    (c.offres || []).forEach(o=>{
+      toutes.push(Object.assign({}, o, {
+        _date: c.date || "",
+        _enseigne: c.enseigne || o.enseigne || ""
+      }));
+    });
+  });
+
+  const tete = `
+    <div class="duo" style="margin-top:0">
+      <button class="action pale" id="ofRafraichir">Rafraîchir</button>
+      <button class="action pale" id="ofDeconnexion">Se déconnecter</button>
+    </div>`;
+
+  if(chargementOffres.startsWith("erreur")){
+    el.innerHTML = `<div class="etat etat-ko">${chargementOffres.slice(8)}</div>${tete}`;
+    brancherOffres();
+    return;
+  }
+
+  if(!toutes.length){
+    el.innerHTML = `
+      <p class="vide">Aucune offre pour l'instant.<br>
+      Le fichier sera créé à la première collecte lancée depuis l'onglet Make.</p>${tete}`;
+    brancherOffres();
+    return;
+  }
+
+  toutes.sort((a,b)=>{
+    if(b._date !== a._date) return (b._date||"").localeCompare(a._date||"");
+    return (prixOffre(a)||0) - (prixOffre(b)||0);
+  });
+
+  let liees = 0;
+  const cartes = toutes.map(o=>{
+    const p = ligneCorrespondante(o);
+    if(p) liees++;
+    const prix = prixOffre(o);
+    const avant = o.prix_avant ? prixOffre({prix:o.prix_avant}) : null;
+    const ens = enseigne(o._enseigne);
+    return `
+      <article class="offre ${p?"lie":""}">
+        ${p ? `<span class="pastille">${p.nom}</span>` : ""}
+        <p class="t1">${o.produit || "Produit"}</p>
+        <p class="t2">${[o.marque, o.modele].filter(Boolean).join(" ") || "—"}</p>
+        <div><span class="p chiffre">${eur(prix)}</span>${
+          avant && avant > prix ? `<span class="avant chiffre">${eur(avant)}</span>` : ""}</div>
+        <p class="bas">${[ens ? ens.nom : o._enseigne,
+                          o.webcode ? "webcode " + o.webcode : "",
+                          o.page ? "page " + o.page : "",
+                          o._date ? dateFr(o._date) : ""].filter(Boolean).join(" · ")}</p>
+      </article>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="bandeau">
+      <div class="gros chiffre">${toutes.length}</div>
+      <div class="lab">offres collectées · ${liees} rattachées à vos lignes ·
+        ${collectes.length} collecte${collectes.length>1?"s":""}</div>
+    </div>
+    ${cartes}${tete}`;
+  brancherOffres();
+}
+
+function brancherOffres(){
+  const r = document.getElementById("ofRafraichir");
+  if(r) r.onclick = chargerCollectes;
+  const d = document.getElementById("ofDeconnexion");
+  if(d) d.onclick = oublier;
+}
+
 /* ---------- Navigation ---------- */
 document.querySelectorAll("nav button").forEach(b=>{
   b.onclick=()=>{
@@ -728,13 +981,52 @@ function rendreTout(){
   document.getElementById("vue-liste").hidden    = vue!=="liste";
   document.getElementById("vue-panier").hidden   = vue!=="panier";
   document.getElementById("vue-reglages").hidden = vue!=="reglages";
+  document.getElementById("vue-offres").hidden   = vue!=="offres";
   document.getElementById("vue-make").hidden     = vue!=="make";
   if(vue==="liste")    rendreListe();
   if(vue==="panier"){  rendrePanier(); majResume(); }
   if(vue==="reglages"){rendreReglages(); majResume(); }
+  if(vue==="offres"){  rendreOffres(); majResume(); }
   if(vue==="make"){    rendreMake(); majResume(); }
 }
-rendreTout();
+/* ---------- Démarrage ---------- */
+(async function demarrer(){
+  const params = new URLSearchParams(location.search);
+
+  if(params.get("error")){
+    rendreTout();
+    vue = "offres";
+    document.getElementById("vue-offres").innerHTML =
+      '<div class="etat etat-ko">' +
+      (params.get("error_description") || params.get("error")) + '</div>';
+    return;
+  }
+
+  if(params.get("code")){
+    try{
+      await echangerCode(params.get("code"));
+      history.replaceState({}, "", REDIRECT);
+      vue = "offres";
+      document.querySelectorAll("nav button").forEach(x=>
+        x.setAttribute("aria-selected", x.dataset.vue==="offres" ? "true":"false"));
+      rendreTout();
+      chargerCollectes();
+    }catch(err){
+      rendreTout();
+      vue = "offres";
+      document.getElementById("vue-offres").innerHTML =
+        '<div class="etat etat-ko">' + err.message + '</div>';
+    }
+    return;
+  }
+
+  if(jetonPerime()){
+    ["sp_token","sp_scopes"].forEach(k=>sessionStorage.removeItem(k));
+  }
+
+  rendreTout();
+  if(jeton()) chargerCollectes();
+})();
 </script>
 </body>
 </html>
