@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v2.3</title>
+<title>Suivi Promo v2.4</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -126,7 +126,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v2.3</span></h1>
+  <h1>Suivi Promo<span class="v">v2.4</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -182,7 +182,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "2.3";
+const VERSION = "2.4";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -213,7 +213,7 @@ const PRODUITS_DEFAUT = [
   {id:"p09", nom:"Hotte de cuisine",        precision:"60 cm, recyclage",           unites:50, motscles:"hotte aspirante cuisine", exclure:"filtre extracteur"},
   {id:"p10", nom:"Radiateur 1500 W",        precision:"thermostat électronique",    unites:50, motscles:"radiateur convecteur chauffage panneau rayonnant", exclure:"seche serviette eau"},
   {id:"p11", nom:"Réfrigérateur table top", precision:"90 à 130 L",                 unites:50, motscles:"refrigerateur frigo", exclure:"congelateur combine americain lave cuisson encastrable"},
-  {id:"p12", nom:"Plaque de cuisson",      precision:"induction posable, 2 feux",  unites:50, motscles:"plaque cuisson induction taque rechaud", exclure:"four hotte micro gaz encastrable"}
+  {id:"p12", nom:"Plaque de cuisson",      precision:"induction posable, 2 feux",  unites:50, motscles:"plaque cuisson taque rechaud induction", exclure:"four hotte micro-ondes gaz vitroceramique vitro encastrable cuisiniere domino"}
 ];
 
 const RELEVES_DEFAUT = [
