@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v2.1</title>
+<title>Suivi Promo v2.2</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -126,7 +126,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v2.1</span></h1>
+  <h1>Suivi Promo<span class="v">v2.2</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -182,7 +182,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "2.1";
+const VERSION = "2.2";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -862,8 +862,15 @@ async function chargerCollectes(){
       const info = lireNomFichier(f.name);
       try{
         const contenu = await graph("/me/drive/items/" + f.id + "/content");
-        const offres = Array.isArray(contenu) ? contenu
-                     : (contenu && Array.isArray(contenu.offres) ? contenu.offres : []);
+        // Make peut livrer un tableau de tableaux quand chaque page a été agrégée
+        // séparément : on aplatit, et on écarte les entrées sans contenu.
+        let brut = Array.isArray(contenu) ? contenu
+                 : (contenu && Array.isArray(contenu.offres) ? contenu.offres : []);
+        const offres = [];
+        brut.forEach(x=>{
+          if(Array.isArray(x)) x.forEach(y=>{ if(y && typeof y === "object") offres.push(y); });
+          else if(x && typeof x === "object") offres.push(x);
+        });
         lots.push({ date:info.date, enseigne:info.enseigne, fichier:f.name, offres });
       }catch(e){
         lots.push({ date:info.date, enseigne:info.enseigne, fichier:f.name, offres:[], erreur:e.message });
@@ -911,7 +918,8 @@ function rendreOffres(){
       <h2>Offres collectées</h2>
       <p class="note" style="margin:0 0 14px">Les promotions relevées par Make sont
         déposées dans votre OneDrive, dossier Suivi Promo, un fichier par collecte.
-        Connectez-vous pour les lire.</p>
+        <b>La connexion vaut pour cet appareil seulement</b> : elle est à refaire
+        sur l'iPhone et sur le PC, et après la fermeture du navigateur.</p>
       <div class="duo"><button class="action" id="ofConnexion">Se connecter à OneDrive</button></div>`;
     document.getElementById("ofConnexion").onclick = connexion;
     return;
@@ -933,21 +941,21 @@ function rendreOffres(){
   });
 
   const tete = `
-    <div class="duo" style="margin-top:0">
+    <div class="duo" style="margin-top:0;margin-bottom:14px">
       <button class="action pale" id="ofRafraichir">Rafraîchir</button>
       <button class="action pale" id="ofDeconnexion">Se déconnecter</button>
     </div>`;
 
   if(chargementOffres.startsWith("erreur")){
-    el.innerHTML = `<div class="etat etat-ko">${chargementOffres.slice(8)}</div>${tete}`;
+    el.innerHTML = `${tete}<div class="etat etat-ko">${chargementOffres.slice(8)}</div>`;
     brancherOffres();
     return;
   }
 
   if(!toutes.length){
-    el.innerHTML = `
-      <p class="vide">Aucune offre pour l'instant.<br>
-      Le dossier Suivi Promo se remplira à la première collecte lancée depuis l'onglet Make.</p>${tete}`;
+    el.innerHTML = `${tete}
+      <p class="vide">Aucune offre dans le dossier Suivi Promo.<br>
+      Il se remplira à la première collecte lancée depuis l'onglet Make.</p>`;
     brancherOffres();
     return;
   }
@@ -978,14 +986,14 @@ function rendreOffres(){
       </article>`;
   }).join("");
 
-  el.innerHTML = `
+  el.innerHTML = `${tete}
     <div class="bandeau">
       <div class="gros chiffre">${toutes.length}</div>
       <div class="lab">offres collectées · ${liees} rattachées à vos lignes ·
         ${collectes.length} collecte${collectes.length>1?"s":""}${
         collectes.filter(c=>c.erreur).length ? " · " + collectes.filter(c=>c.erreur).length + " fichier(s) illisible(s)" : ""}</div>
     </div>
-    ${cartes}${tete}`;
+    ${cartes}`;
   brancherOffres();
 }
 
