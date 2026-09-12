@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v2.2</title>
+<title>Suivi Promo v2.3</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -126,7 +126,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v2.2</span></h1>
+  <h1>Suivi Promo<span class="v">v2.3</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -182,7 +182,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "2.2";
+const VERSION = "2.3";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -820,9 +820,14 @@ async function rafraichirJeton(){
   }catch(e){ return false; }
 }
 async function graph(chemin, deja){
-  const r = await fetch(chemin.startsWith("http") ? chemin : GRAPH + chemin, {
+  // Microsoft redirige la lecture d'un fichier vers une adresse qui porte
+  // déjà son propre jeton. Y ajouter le nôtre provoque un refus 401 sur
+  // certains navigateurs : on n'envoie l'autorisation qu'à Graph lui-même.
+  const url = chemin.startsWith("http") ? chemin : GRAPH + chemin;
+  const propre = url.indexOf("graph.microsoft.com") !== -1;
+  const r = await fetch(url, {
     cache:"no-store",
-    headers:{ Authorization: "Bearer " + jeton() }
+    headers: propre ? { Authorization: "Bearer " + jeton() } : {}
   });
   if(r.status === 401 && !deja){
     if(await rafraichirJeton()) return graph(chemin, true);
@@ -839,6 +844,31 @@ async function graph(chemin, deja){
 }
 
 /* ---------- Offres collectées ---------- */
+
+// Lit le contenu d'un fichier OneDrive. On demande d'abord l'adresse de
+// téléchargement à Graph, puis on la suit sans en-tête d'autorisation :
+// elle porte déjà son propre jeton, et en ajouter un second fait échouer
+// la requête sur certains navigateurs.
+async function lireFichier(id, deja){
+  const r = await fetch(GRAPH + "/me/drive/items/" + id, {
+    cache:"no-store",
+    headers:{ Authorization: "Bearer " + jeton() }
+  });
+  if(r.status === 401 && !deja){
+    if(await rafraichirJeton()) return lireFichier(id, true);
+    throw new Error("Session expirée. Reconnectez-vous.");
+  }
+  if(!r.ok) throw new Error("Fichier illisible (" + r.status + ")");
+  const meta = await r.json();
+  const lien = meta["@microsoft.graph.downloadUrl"];
+  if(!lien) throw new Error("Adresse de téléchargement absente.");
+  const c = await fetch(lien, { cache:"no-store" });
+  if(!c.ok) throw new Error("Téléchargement refusé (" + c.status + ")");
+  const txt = await c.text();
+  if(!txt) return null;
+  try{ return JSON.parse(txt); }
+  catch(e){ throw new Error("Le fichier n'est pas un JSON lisible."); }
+}
 // Le nom du fichier porte la date et l'enseigne : 2026-09-11-eldi.json
 function lireNomFichier(nom){
   const m = (nom||"").match(/^(\d{4}-\d{2}-\d{2})-(.+)\.json$/i);
@@ -861,7 +891,7 @@ async function chargerCollectes(){
     for(const f of fichiers){
       const info = lireNomFichier(f.name);
       try{
-        const contenu = await graph("/me/drive/items/" + f.id + "/content");
+        const contenu = await lireFichier(f.id);
         // Make peut livrer un tableau de tableaux quand chaque page a été agrégée
         // séparément : on aplatit, et on écarte les entrées sans contenu.
         let brut = Array.isArray(contenu) ? contenu
