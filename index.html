@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v2.9</title>
+<title>Suivi Promo v3.0</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -119,6 +119,8 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 .grp .gprix{font-size:14px;font-weight:700;color:var(--gain)}
 .grp .corps{padding:0 10px 10px}
 .grp .corps .offre{margin-bottom:6px}
+.etat-attente{background:var(--alerte-fond);color:var(--alerte);font-weight:600}
+.offre .unitaire{font-size:13px;font-weight:600;color:var(--gain);margin-left:10px}
 .alerte-bloc{background:var(--alerte-fond);border-left:5px solid var(--alerte);
   border-radius:var(--r);padding:12px 14px;margin-bottom:14px}
 .alerte-bloc .titre{font-size:14.5px;font-weight:700;color:var(--alerte);margin:0 0 6px}
@@ -148,7 +150,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v2.9</span></h1>
+  <h1>Suivi Promo<span class="v">v3.0</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -204,7 +206,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "2.9";
+const VERSION = "3.0";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -958,9 +960,11 @@ async function chargerCollectes(){
           if(Array.isArray(x)) x.forEach(y=>{ if(y && typeof y === "object") offres.push(y); });
           else if(x && typeof x === "object") offres.push(x);
         });
-        lots.push({ date:info.date, enseigne:info.enseigne, fichier:f.name, offres });
+        lots.push({ date:info.date, enseigne:info.enseigne, fichier:f.name, offres,
+                    modifie: f.lastModifiedDateTime || "" });
       }catch(e){
-        lots.push({ date:info.date, enseigne:info.enseigne, fichier:f.name, offres:[], erreur:e.message });
+        lots.push({ date:info.date, enseigne:info.enseigne, fichier:f.name, offres:[],
+                    modifie: f.lastModifiedDateTime || "", erreur:e.message });
       }
     }
     collectes = lots;
@@ -1023,6 +1027,49 @@ function enseignesMuettes(){
     });
   });
   return muettes;
+}
+
+// "10 L", "2,5 L", "5L", "750 ml" -> nombre de litres
+function litres(contenance){
+  if(!contenance) return null;
+  const t = String(contenance).toLowerCase().replace(",", ".");
+  const m = t.match(/([\d.]+)\s*(l|ml|litre)/);
+  if(!m) return null;
+  const v = parseFloat(m[1]);
+  if(!isFinite(v) || v <= 0) return null;
+  return m[2] === "ml" ? v/1000 : v;
+}
+
+function prixAuLitre(o){
+  const p = prixOffre(o), l = litres(o.contenance);
+  return (p != null && l) ? p/l : null;
+}
+
+// Compare les enseignes connues avec les fichiers du jour.
+function etatCollecte(){
+  const aujourdhuiIso = new Date().toISOString().slice(0,10);
+  const connues = [...new Set(collectes.map(c=>c.enseigne).filter(Boolean))];
+  if(!connues.length) return null;
+
+  const duJour = collectes.filter(c=>c.date === aujourdhuiIso);
+  const faites  = [...new Set(duJour.map(c=>c.enseigne))];
+  const absentes = connues.filter(e=>!faites.includes(e));
+
+  let derniere = "";
+  duJour.forEach(c=>{ if(c.modifie > derniere) derniere = c.modifie; });
+
+  return {
+    total: connues.length,
+    faites: faites.length,
+    absentes,
+    heure: derniere ? new Date(derniere).toLocaleTimeString("fr-BE",{hour:"2-digit",minute:"2-digit"}) : "",
+    complete: absentes.length === 0
+  };
+}
+
+function nomEnseigne(code){
+  const e = enseigne(code);
+  return e ? e.nom : String(code).split("-").map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(" ");
 }
 
 function rendreOffres(){
@@ -1108,7 +1155,10 @@ function rendreOffres(){
         <p class="t1">${o.produit || "Produit"}</p>
         <p class="t2">${[o.marque, o.modele].filter(Boolean).join(" ") || "—"}</p>
         <div><span class="p chiffre">${eur(prix)}</span>${
-          avant && avant > prix ? `<span class="avant chiffre">${eur(avant)}</span>` : ""}</div>
+          avant && avant > prix ? `<span class="avant chiffre">${eur(avant)}</span>` : ""}${
+          (()=>{ const pl = prixAuLitre(o);
+                 return pl != null ? `<span class="unitaire chiffre">${eur(pl)} / L</span>` : ""; })()}</div>
+        ${o.contenance ? `<p class="bas" style="margin-top:2px">${o.contenance}</p>` : ""}
         <p class="bas">${[ens ? ens.nom : o._enseigne,
                           o.webcode ? "webcode " + o.webcode : "",
                           o.page ? "page " + o.page : "",
@@ -1164,7 +1214,17 @@ function rendreOffres(){
       }. Vérifiez l'adresse du folder.</p>`).join("")}
     </div>` : "";
 
-  el.innerHTML = `${tete}${alerte}${selecteur}
+  const ec = etatCollecte();
+  const bandeauEtat = ec ? `
+    <div class="etat ${ec.complete ? "etat-ok" : "etat-attente"}">
+      ${ec.faites === 0
+        ? "Aucune collecte aujourd'hui — la dernière remonte à plus tôt."
+        : (ec.complete
+            ? `Collecte du jour terminée${ec.heure ? " à " + ec.heure : ""} — ${ec.total} enseigne${ec.total>1?"s":""} sur ${ec.total}.`
+            : `Collecte du jour en cours ou incomplète — ${ec.faites} sur ${ec.total}. Manque : ${ec.absentes.map(nomEnseigne).join(", ")}.`)}
+    </div>` : "";
+
+  el.innerHTML = `${tete}${alerte}${bandeauEtat}${selecteur}
     <div class="bandeau">
       <div class="gros chiffre">${toutes.length}</div>
       <div class="lab">offres collectées · ${liees} rattachées à vos lignes ·
