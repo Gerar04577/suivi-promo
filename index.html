@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v2.5</title>
+<title>Suivi Promo v2.6</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -101,6 +101,24 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 .bandeau .gros{font-size:24px;font-weight:600;color:var(--gain)}
 .bandeau .lab{font-size:13px;color:var(--sourdine)}
 
+.vues{display:flex;gap:6px;margin:0 0 14px;background:var(--carte);
+  border:1px solid var(--trait);border-radius:var(--r);padding:4px}
+.vues button{flex:1;border:0;background:none;padding:9px 4px;border-radius:8px;
+  font:inherit;font-size:13.5px;font-weight:600;color:var(--sourdine);cursor:pointer}
+.vues button[aria-pressed="true"]{background:var(--encre);color:#fff}
+.grp{border:1px solid var(--trait);border-radius:var(--r);margin-bottom:8px;
+  background:var(--carte);overflow:hidden}
+.grp>summary{padding:12px 14px;cursor:pointer;list-style:none;display:flex;
+  align-items:baseline;gap:8px}
+.grp>summary::-webkit-details-marker{display:none}
+.grp>summary::before{content:"▸";color:var(--sourdine);font-size:12px;
+  transition:transform .15s}
+.grp[open]>summary::before{content:"▾"}
+.grp .gnom{font-size:14.5px;font-weight:700;flex:1}
+.grp .gnb{font-size:12px;color:var(--sourdine)}
+.grp .gprix{font-size:14px;font-weight:700;color:var(--gain)}
+.grp .corps{padding:0 10px 10px}
+.grp .corps .offre{margin-bottom:6px}
 .alerte-bloc{background:var(--alerte-fond);border-left:5px solid var(--alerte);
   border-radius:var(--r);padding:12px 14px;margin-bottom:14px}
 .alerte-bloc .titre{font-size:14.5px;font-weight:700;color:var(--alerte);margin:0 0 6px}
@@ -130,7 +148,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v2.5</span></h1>
+  <h1>Suivi Promo<span class="v">v2.6</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -186,7 +204,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "2.5";
+const VERSION = "2.6";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -206,18 +224,33 @@ const ENSEIGNES_DEFAUT = [
 ];
 
 const PRODUITS_DEFAUT = [
-  {id:"p01", nom:"Mitigeur lavabo",         precision:"cartouche 35 mm",            unites:50, motscles:"mitigeur lavabo robinet", exclure:"evier douche cuisine"},
-  {id:"p02", nom:"Mitigeur évier",          precision:"cartouche 35 mm, bec bas",   unites:50, motscles:"mitigeur evier robinet cuisine", exclure:"lavabo douche"},
-  {id:"p03", nom:"Mitigeur douche",         precision:"mécanique, cartouche 35 mm", unites:50, motscles:"mitigeur douche colonne", exclure:"lavabo evier thermostatique"},
-  {id:"p04", nom:"Douchette et flexible",   precision:"flexible 1,5 m, 1 jet",      unites:50, motscles:"douchette flexible pommeau", exclure:"robinet mitigeur"},
-  {id:"p05", nom:"Robinet d'arrêt équerre", precision:"avec flexible inox",         unites:50, motscles:"robinet arret equerre vanne", exclure:"mitigeur lavabo douche"},
-  {id:"p06", nom:"Peinture lavable",        precision:"blanc mat, seau 10 L",       unites:50, motscles:"peinture mur plafond latex acrylique", exclure:"antifongique bois metal sol"},
-  {id:"p07", nom:"Peinture antifongique",   precision:"blanc satiné, 2,5 L",        unites:50, motscles:"peinture antifongique antimoisissure salle de bain", exclure:"mur plafond sol bois"},
-  {id:"p08", nom:"Extracteur silencieux",   precision:"Ø 100, sous 30 dB",          unites:50, motscles:"extracteur ventilateur aerateur ventilation", exclure:"jus centrifugeuse fruit hotte"},
-  {id:"p09", nom:"Hotte de cuisine",        precision:"60 cm, recyclage",           unites:50, motscles:"hotte aspirante cuisine", exclure:"filtre extracteur"},
-  {id:"p10", nom:"Radiateur 1500 W",        precision:"thermostat électronique",    unites:50, motscles:"radiateur convecteur chauffage panneau rayonnant", exclure:"seche serviette eau"},
-  {id:"p11", nom:"Réfrigérateur table top", precision:"90 à 130 L",                 unites:50, motscles:"refrigerateur frigo", exclure:"congelateur combine americain lave cuisson encastrable"},
-  {id:"p12", nom:"Plaque de cuisson",      precision:"induction posable, 2 feux",  unites:50, motscles:"plaque cuisson taque rechaud induction", exclure:"four hotte micro-ondes gaz vitroceramique vitro encastrable cuisiniere domino"}
+  {id:"p01", nom:"Mitigeur lavabo",         precision:"cartouche 35 mm",            unites:50, motscles:"mitigeur lavabo robinet", exclure:"evier douche cuisine", famille:"robinetterie"},
+  {id:"p02", nom:"Mitigeur évier",          precision:"cartouche 35 mm, bec bas",   unites:50, motscles:"mitigeur evier robinet cuisine", exclure:"lavabo douche", famille:"robinetterie"},
+  {id:"p03", nom:"Mitigeur douche",         precision:"mécanique, cartouche 35 mm", unites:50, motscles:"mitigeur douche colonne", exclure:"lavabo evier thermostatique", famille:"robinetterie"},
+  {id:"p04", nom:"Douchette et flexible",   precision:"flexible 1,5 m, 1 jet",      unites:50, motscles:"douchette flexible pommeau", exclure:"robinet mitigeur", famille:"robinetterie"},
+  {id:"p05", nom:"Robinet d'arrêt équerre", precision:"avec flexible inox",         unites:50, motscles:"robinet arret equerre vanne", exclure:"mitigeur lavabo douche", famille:"robinetterie"},
+  {id:"p06", nom:"Peinture lavable",        precision:"blanc mat, seau 10 L",       unites:50, motscles:"peinture mur plafond latex acrylique", exclure:"antifongique bois metal sol", famille:"peintures"},
+  {id:"p07", nom:"Peinture antifongique",   precision:"blanc satiné, 2,5 L",        unites:50, motscles:"peinture antifongique antimoisissure salle de bain", exclure:"mur plafond sol bois", famille:"peintures"},
+  {id:"p08", nom:"Extracteur silencieux",   precision:"Ø 100, sous 30 dB",          unites:50, motscles:"extracteur ventilateur aerateur ventilation", exclure:"jus centrifugeuse fruit hotte", famille:"ventilation"},
+  {id:"p09", nom:"Hotte de cuisine",        precision:"60 cm, recyclage",           unites:50, motscles:"hotte aspirante cuisine", exclure:"filtre extracteur", famille:"electromenager"},
+  {id:"p10", nom:"Radiateur 1500 W",        precision:"thermostat électronique",    unites:50, motscles:"radiateur convecteur chauffage panneau rayonnant", exclure:"seche serviette eau", famille:"chauffage"},
+  {id:"p11", nom:"Réfrigérateur table top", precision:"90 à 130 L",                 unites:50, motscles:"refrigerateur frigo", exclure:"congelateur combine americain lave cuisson encastrable", famille:"electromenager"},
+  {id:"p12", nom:"Plaque de cuisson",      precision:"induction posable, 2 feux",  unites:50, motscles:"plaque cuisson taque rechaud induction", exclure:"four hotte micro-ondes gaz vitroceramique vitro encastrable cuisiniere domino", famille:"electromenager"},
+  {id:"p13", nom:"Pack WC au sol",        precision:"cuvette + réservoir, sortie horizontale ou verticale", unites:50, motscles:"wc toilette cuvette pack", exclure:"suspendu bati encastrer lave-mains abattant seul broyeur", famille:"sanitaire"},
+  {id:"p14", nom:"Plafonnier",            precision:"culot standard E27, pas de LED intégrée", unites:50, motscles:"plafonnier luminaire plafond", exclure:"spot encastre applique reglette exterieur jardin", famille:"eclairage"},
+  {id:"p15", nom:"Applique lavabo",       precision:"culot standard, pas de LED intégrée",     unites:50, motscles:"applique murale miroir", exclure:"plafonnier reglette spot exterieur jardin", famille:"eclairage"},
+  {id:"p16", nom:"Réglette cuisine",      precision:"culot standard, sous meuble",             unites:50, motscles:"reglette tube sous-meuble barre", exclure:"plafonnier applique spot exterieur jardin", famille:"eclairage"}
+];
+
+// Familles de matériel : regroupent les lignes pour l'affichage par catégorie.
+const FAMILLES = [
+  {id:"robinetterie",   nom:"Robinetterie"},
+  {id:"sanitaire",      nom:"Sanitaire"},
+  {id:"peintures",      nom:"Peintures"},
+  {id:"electromenager", nom:"Électroménager"},
+  {id:"eclairage",      nom:"Éclairage"},
+  {id:"ventilation",    nom:"Ventilation"},
+  {id:"chauffage",      nom:"Chauffage"}
 ];
 
 const RELEVES_DEFAUT = [
@@ -248,6 +281,7 @@ let produitOuvert = null;
 let lignesJournal = [];
 let collectes = [];
 let chargementOffres = "";
+let vueOffres = "categorie";
 
 function lireBrut(){
   try{
@@ -1029,13 +1063,21 @@ function rendreOffres(){
     return;
   }
 
+  // --- Vue par groupes : catégories de matériel ou enseignes ---
+  const selecteur = `
+    <div class="vues">
+      <button data-vo="categorie" aria-pressed="${vueOffres==="categorie"}">Par catégorie</button>
+      <button data-vo="enseigne"  aria-pressed="${vueOffres==="enseigne"}">Par enseigne</button>
+      <button data-vo="tout"      aria-pressed="${vueOffres==="tout"}">Tout</button>
+    </div>`;
+
   toutes.sort((a,b)=>{
     if(b._date !== a._date) return (b._date||"").localeCompare(a._date||"");
     return (prixOffre(a)||0) - (prixOffre(b)||0);
   });
 
   let liees = 0;
-  const cartes = toutes.map(o=>{
+  const carte = o=>{
     const p = ligneCorrespondante(o);
     if(p) liees++;
     const prix = prixOffre(o);
@@ -1053,7 +1095,45 @@ function rendreOffres(){
                           o.page ? "page " + o.page : "",
                           o._date ? dateFr(o._date) : ""].filter(Boolean).join(" · ")}</p>
       </article>`;
-  }).join("");
+  };
+
+  toutes.forEach(o=>{ if(ligneCorrespondante(o)) liees++; });
+
+  function groupe(nom, lot, sousTitre){
+    if(!lot.length) return "";
+    const mini = lot.reduce((m,o)=>{ const p = prixOffre(o); return (p!=null && (m==null||p<m)) ? p : m; }, null);
+    return `
+      <details class="grp">
+        <summary>
+          <span class="gnom">${nom}</span>
+          <span class="gnb">${lot.length} offre${lot.length>1?"s":""}${sousTitre?" · "+sousTitre:""}</span>
+          <span class="gprix chiffre">${mini!=null?eur(mini):""}</span>
+        </summary>
+        <div class="corps">${lot.map(carte).join("")}</div>
+      </details>`;
+  }
+
+  let cartes;
+  if(vueOffres === "tout"){
+    cartes = toutes.map(carte).join("");
+  } else if(vueOffres === "enseigne"){
+    const par = {};
+    toutes.forEach(o=>{ (par[o._enseigne] = par[o._enseigne] || []).push(o); });
+    cartes = Object.keys(par).sort().map(code=>{
+      const e = enseigne(code);
+      const nom = e ? e.nom : code.split("-").map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(" ");
+      return groupe(nom, par[code], e ? e.km + " km" : "");
+    }).join("");
+  } else {
+    const par = {}; const autres = [];
+    toutes.forEach(o=>{
+      const p = ligneCorrespondante(o);
+      if(p && p.famille) (par[p.famille] = par[p.famille] || []).push(o);
+      else autres.push(o);
+    });
+    cartes = FAMILLES.map(f=>groupe(f.nom, par[f.id] || [])).join("")
+           + groupe("Autres", autres);
+  }
 
   const muettes = enseignesMuettes();
   const alerte = muettes.length ? `
@@ -1065,7 +1145,7 @@ function rendreOffres(){
       }. Vérifiez l'adresse du folder.</p>`).join("")}
     </div>` : "";
 
-  el.innerHTML = `${tete}${alerte}
+  el.innerHTML = `${tete}${alerte}${selecteur}
     <div class="bandeau">
       <div class="gros chiffre">${toutes.length}</div>
       <div class="lab">offres collectées · ${liees} rattachées à vos lignes ·
@@ -1077,6 +1157,9 @@ function rendreOffres(){
 }
 
 function brancherOffres(){
+  document.querySelectorAll("#vue-offres .vues button").forEach(b=>{
+    b.onclick = ()=>{ vueOffres = b.dataset.vo; rendreOffres(); };
+  });
   const r = document.getElementById("ofRafraichir");
   if(r) r.onclick = chargerCollectes;
   const d = document.getElementById("ofDeconnexion");
