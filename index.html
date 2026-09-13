@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v3.0</title>
+<title>Suivi Promo v3.3</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -121,6 +121,15 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 .grp .corps .offre{margin-bottom:6px}
 .etat-attente{background:var(--alerte-fond);color:var(--alerte);font-weight:600}
 .offre .unitaire{font-size:13px;font-weight:600;color:var(--gain);margin-left:10px}
+.aide h3{font-size:15px;font-weight:700;margin:18px 0 6px;color:var(--encre)}
+.aide h4{font-size:13.5px;font-weight:700;margin:12px 0 4px;color:var(--sourdine);
+  text-transform:uppercase;letter-spacing:.03em}
+.aide p{font-size:14px;line-height:1.55;margin:0 0 9px}
+.aide ol,.aide ul{margin:0 0 10px;padding-left:20px}
+.aide li{font-size:14px;line-height:1.5;margin-bottom:4px}
+.aide .cadre{background:var(--carte);border:1px solid var(--trait);border-radius:var(--r);
+  padding:11px 13px;margin:0 0 12px;font-size:13.5px;line-height:1.5}
+.aide .cadre b{color:var(--encre)}
 .alerte-bloc{background:var(--alerte-fond);border-left:5px solid var(--alerte);
   border-radius:var(--r);padding:12px 14px;margin-bottom:14px}
 .alerte-bloc .titre{font-size:14.5px;font-weight:700;color:var(--alerte);margin:0 0 6px}
@@ -150,7 +159,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v3.0</span></h1>
+  <h1>Suivi Promo<span class="v">v3.3</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -160,6 +169,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
   <button role="tab" aria-selected="false" data-vue="reglages">Réglages</button>
   <button role="tab" aria-selected="false" data-vue="offres">Offres</button>
   <button role="tab" aria-selected="false" data-vue="make">Make</button>
+  <button role="tab" aria-selected="false" data-vue="aide">Aide</button>
 </nav>
 
 <main>
@@ -168,6 +178,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
   <section id="vue-reglages" hidden></section>
   <section id="vue-offres" hidden></section>
   <section id="vue-make" hidden></section>
+  <section id="vue-aide" hidden></section>
 </main>
 
 <dialog id="dlgFiche"></dialog>
@@ -206,17 +217,18 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "3.0";
+const VERSION = "3.3";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
 const ENSEIGNES_DEFAUT = [
   {id:"bricoplanit", nom:"BricoPlanit",   ville:"Ghlin",                   km:3,  pays:"BE"},
+  {id:"brico",       nom:"Brico",         ville:"Ghlin",                   km:3,  pays:"BE", folder:"https://view.publitas.com/brico-belgie-fr/brico-befr-f16-2026/spreads.json", cible:"bricolage"},
   {id:"krefel",      nom:"Krëfel",        ville:"Grands Prés",             km:3,  pays:"BE"},
   {id:"vandenborre", nom:"Vanden Borre",  ville:"Mons",                    km:3,  pays:"BE"},
-  {id:"eldi",        nom:"ELDI",          ville:"Baudarts",                km:3,  pays:"BE"},
-  {id:"mrbrico",     nom:"Mr. Bricolage", ville:"Mons",                    km:3,  pays:"BE"},
-  {id:"hubo",        nom:"Hubo",          ville:"Jemappes",                km:5,  pays:"BE"},
+  {id:"eldi",        nom:"ELDI",          ville:"Baudarts",                km:3,  pays:"BE", folder:"https://view.publitas.com/eldi/be-997-fr/spreads.json", cible:"electro"},
+  {id:"mrbrico",     nom:"Mr. Bricolage", ville:"Mons",                    km:3,  pays:"BE", folder:"https://view.publitas.com/mr-bricolage/folder-13-2026/spreads.json", cible:"bricolage"},
+  {id:"hubo",        nom:"Hubo",          ville:"Jemappes",                km:5,  pays:"BE", folder:"https://folder.hubo.be/2637_fr/spreads.json", cible:"bricolage"},
   {id:"gamma",       nom:"Gamma",         ville:"Quaregnon",               km:10, pays:"BE"},
   {id:"edepotbe",    nom:"Electro Dépôt", ville:"Froyennes (Tournai)",     km:48, pays:"BE"},
   {id:"bricodepot",  nom:"Brico Dépôt",   ville:"Aulnoy-lez-Valenciennes", km:45, pays:"FR"},
@@ -245,6 +257,20 @@ const PRODUITS_DEFAUT = [
 ];
 
 // Familles de matériel : regroupent les lignes pour l'affichage par catégorie.
+// Ce que chaque enseigne doit être invitée à chercher. Le bricolage et
+// l'électroménager n'ont pas les mêmes rayons : demander l'un chez l'autre
+// ne rapporte rien et coûte des jetons.
+const CIBLES = {
+  electro: {
+    cat:"réfrigérateur de table sans congélateur, plaque de cuisson, radiateur électrique de chauffage, hotte de cuisine, extracteur d'air de ventilation, plafonnier, applique murale, réglette",
+    hors:"extracteur de jus, congélateur, combiné, lave-linge, lave-vaisselle, sèche-linge, four, micro-ondes, téléviseur, aspirateur, cafetière, friteuse, spot encastré"
+  },
+  bricolage: {
+    cat:"mitigeur de lavabo, mitigeur d'évier, mitigeur de douche, douchette et flexible, robinet d'arrêt équerre, peinture murale intérieure, peinture antifongique, extracteur d'air de ventilation, hotte de cuisine, pack WC au sol avec cuvette et réservoir, plafonnier, applique murale, réglette",
+    hors:"outillage, machines, jardin, terrasse, bois, isolation, pellets, piles, ampoules, décoration, tondeuse, barbecue, WC suspendu, bâti-support, spot encastré"
+  }
+};
+
 const FAMILLES = [
   {id:"robinetterie",   nom:"Robinetterie"},
   {id:"sanitaire",      nom:"Sanitaire"},
@@ -315,6 +341,21 @@ function completerProduits(liste){
   return enregistres;
 }
 
+function completerEnseignes(liste){
+  const enr = Array.isArray(liste) ? liste : [];
+  enr.forEach(e=>{
+    const d = ENSEIGNES_DEFAUT.find(x=>x.id === e.id);
+    if(!d) return;
+    ["nom","ville","km","pays"].forEach(c=>{ if(e[c] === undefined || e[c] === "") e[c] = d[c]; });
+    if(e.folder === undefined && d.folder) e.folder = d.folder;
+    if(e.cible  === undefined && d.cible)  e.cible  = d.cible;
+  });
+  ENSEIGNES_DEFAUT.forEach(d=>{
+    if(!enr.some(e=>e.id === d.id)) enr.push(structuredClone(d));
+  });
+  return enr;
+}
+
 function charger(){
   try{
     const brut = lireBrut();
@@ -322,7 +363,7 @@ function charger(){
       const d = JSON.parse(brut);
       return {
         produits:  completerProduits(d.produits) || structuredClone(PRODUITS_DEFAUT),
-        enseignes: d.enseignes || structuredClone(ENSEIGNES_DEFAUT),
+        enseignes: completerEnseignes(d.enseignes) || structuredClone(ENSEIGNES_DEFAUT),
         releves:   d.releves   || structuredClone(RELEVES_DEFAUT),
         reglages:  Object.assign({}, REGLAGES_DEFAUT, d.reglages || {})
       };
@@ -560,6 +601,17 @@ function rendreReglages(){
       <span class="ens">${e.nom}<span class="quand">${e.ville} · ${e.pays}</span></span>
       <input style="width:84px;font-size:15px;padding:6px 8px" type="number" min="0" step="1"
              value="${e.km}" data-km="${e.id}"></div>`).join("")}
+    <h2>Adresses des folders</h2>
+    <p class="note" style="margin:0 0 10px">Adresse interrogée par la collecte. Le numéro change
+      à chaque nouvelle parution : corrigez-le ici quand une enseigne ne renvoie plus rien.</p>
+    ${etat.enseignes.filter(e=>e.folder !== undefined).map(e=>`
+      <label for="fd_${e.id}">${e.nom}</label>
+      <input id="fd_${e.id}" type="url" inputmode="url" autocapitalize="off" spellcheck="false"
+             value="${(e.folder||"").replace(/"/g,"&quot;")}" data-folder="${e.id}"
+             placeholder="https://view.publitas.com/...">`).join("")}
+    <div class="duo"><button class="action" id="cfFolders">Enregistrer les adresses</button></div>
+    <div id="cfFoldersEtat" class="etat" style="display:none"></div>
+
     <h2>Données</h2>
     <div class="duo">
       <button class="action pale" id="cfExport">Exporter</button>
@@ -575,6 +627,29 @@ function rendreReglages(){
     etat.reglages.coutKm = parseFloat(document.getElementById("cfKm").value)||0;
     etat.reglages.jours  = parseInt(document.getElementById("cfJ").value)||90;
     sauver(); rendreTout();
+  };
+  const btnF = document.getElementById("cfFolders");
+  if(btnF) btnF.onclick=()=>{
+    let n = 0, mauvaises = [];
+    el.querySelectorAll("[data-folder]").forEach(inp=>{
+      const e = enseigne(inp.dataset.folder);
+      if(!e) return;
+      const v = inp.value.trim();
+      if(v && !/^https:\/\/\S+$/.test(v)){ mauvaises.push(e.nom); return; }
+      if(v !== e.folder){ e.folder = v; n++; }
+    });
+    sauver();
+    const z = document.getElementById("cfFoldersEtat");
+    z.style.display = "block";
+    if(mauvaises.length){
+      z.className = "etat etat-ko";
+      z.textContent = "Adresse incorrecte pour : " + mauvaises.join(", ") +
+        ". Une adresse doit commencer par https:// et ne pas contenir d'espace.";
+    }else{
+      z.className = "etat etat-ok";
+      z.textContent = n ? (n + " adresse" + (n>1?"s":"") + " enregistrée" + (n>1?"s":"") +
+        ". Relancez une collecte depuis l'onglet Make.") : "Aucun changement.";
+    }
   };
   el.querySelectorAll("[data-km]").forEach(inp=>{
     inp.onchange=()=>{ enseigne(inp.dataset.km).km = parseFloat(inp.value)||0; sauver(); };
@@ -659,6 +734,19 @@ function messageComplet(surcharge){
 
     liste_produits: etat.produits.map(x=>x.id).join(","),
     liste_enseignes: etat.enseignes.map(x=>x.id).join(","),
+    // Liste transmise à Make, au format exact attendu par son module Parse JSON.
+    // Une chaîne, jamais un tableau : un tableau déclencherait une exécution
+    // du scénario par enseigne au lieu d'une seule.
+    enseignes_json: JSON.stringify(
+      etat.enseignes
+        .filter(x => x.folder && x.actif !== false)
+        .map(x => ({
+          code: x.id,
+          url:  x.folder,
+          cat:  (CIBLES[x.cible] || CIBLES.bricolage).cat,
+          hors: (CIBLES[x.cible] || CIBLES.bricolage).hors
+        }))
+    ),
     nombre_produits: etat.produits.length,
     nombre_enseignes: etat.enseignes.length,
 
@@ -1256,6 +1344,117 @@ function brancherOffres(){
   if(d) d.onclick = oublier;
 }
 
+/* ---------- Aide ---------- */
+function rendreAide(){
+  const el = document.getElementById("vue-aide");
+  el.className = "aide";
+  el.innerHTML = `
+    <h2>Mode d'emploi</h2>
+    <p>Cette application relève les promotions des folders de vos enseignes, les rattache
+       à vos lignes de fourniture, et vous permet de comparer les prix. Les prix sont lus
+       sur les images des folders, donc exacts. Elle n'achète rien : elle vous dit où et à quel prix.</p>
+
+    <h3>Les six écrans</h3>
+    <ul>
+      <li><b>Comparer</b> — vos lignes de fourniture, avec l'écart entre le moins cher et le plus cher.</li>
+      <li><b>Trajet</b> — le gain net d'un déplacement, distance et coût kilométrique compris.</li>
+      <li><b>Réglages</b> — le coût au kilomètre, les distances, et les adresses des folders.</li>
+      <li><b>Offres</b> — les promotions relevées. C'est l'écran principal.</li>
+      <li><b>Make</b> — le lancement de la collecte et son journal.</li>
+      <li><b>Aide</b> — cette page.</li>
+    </ul>
+
+    <h3>Première utilisation</h3>
+    <p>Ouvrez l'écran Offres et appuyez sur <b>Se connecter à OneDrive</b>. Identifiez-vous
+       avec votre compte Microsoft.</p>
+    <div class="cadre"><b>À savoir</b> — la connexion vaut pour un seul appareil et une seule
+      session. Elle est à refaire sur l'iPhone et sur le PC, et après avoir fermé le navigateur.
+      Ce n'est pas un défaut : c'est ainsi que fonctionne l'authentification Microsoft.</div>
+
+    <h3>Lancer une collecte</h3>
+    <ol>
+      <li>Ouvrez l'écran Make.</li>
+      <li>Vérifiez que le bandeau vert affiche l'adresse du webhook.</li>
+      <li>Appuyez sur <b>Lancer la collecte maintenant</b>.</li>
+      <li>Attendez : comptez une dizaine de minutes par enseigne.</li>
+      <li>Revenez sur Offres et appuyez sur <b>Rafraîchir</b>.</li>
+    </ol>
+    <div class="cadre"><b>Pourquoi c'est long</b> — chaque page du folder est téléchargée en image,
+      puis lue par une intelligence artificielle qui relève les produits et leurs prix. C'est ce qui
+      rend les prix exacts, mais cela prend du temps.</div>
+
+    <h3>Les trois vues de l'écran Offres</h3>
+    <ul>
+      <li><b>Par catégorie</b> — toutes enseignes mélangées, regroupées par famille de matériel.
+          Pour comparer les marchands et décider où acheter.</li>
+      <li><b>Par enseigne</b> — un groupe par marchand, avec sa distance.
+          Pour préparer un passage en magasin.</li>
+      <li><b>Tout</b> — la liste complète, du moins cher au plus cher, sans regroupement.</li>
+    </ul>
+    <p>Chaque groupe replié affiche son nom, le nombre d'offres et le meilleur prix : pas besoin
+       de tout déplier pour savoir où regarder.</p>
+
+    <h3>Lire une offre</h3>
+    <ul>
+      <li><b>Pastille verte</b> — la ligne de votre liste à laquelle l'offre correspond.
+          Sans pastille, l'offre n'a pas été rattachée.</li>
+      <li><b>Prix en gros</b> — le prix promotionnel, lu sur l'image.</li>
+      <li><b>Prix barré</b> — le prix habituel. S'il est absent, ce n'est pas une promotion.</li>
+      <li><b>Prix au litre</b> — calculé quand la contenance est connue. C'est lui qui compte
+          pour les peintures.</li>
+      <li><b>Ligne du bas</b> — enseigne, référence, page du folder, date de la collecte.</li>
+    </ul>
+
+    <h3>Les deux bandeaux</h3>
+    <h4>État de la collecte</h4>
+    <p>Vert quand toutes les enseignes ont été collectées aujourd'hui, avec l'heure de fin.
+       Ambre quand il en manque, avec le nom de celles qui manquent.</p>
+    <h4>Alerte enseigne muette</h4>
+    <p>Bandeau rouge, après deux collectes sans résultat pour une même enseigne. C'est le signe
+       que l'adresse de son folder a changé.</p>
+    <div class="cadre"><b>Pourquoi deux collectes et non une</b> — un folder peut ne contenir
+      aucune promotion de votre liste, et ce n'est pas une panne. Deux collectes vides d'affilée,
+      en revanche, signalent presque toujours une adresse périmée.</div>
+
+    <h3>Corriger l'adresse d'un folder</h3>
+    <ol>
+      <li>Ouvrez l'écran Réglages, section <b>Adresses des folders</b>.</li>
+      <li>Ouvrez le folder de l'enseigne dans Safari et relevez la nouvelle adresse.</li>
+      <li>Collez-la dans le champ correspondant.</li>
+      <li>Appuyez sur <b>Enregistrer les adresses</b>.</li>
+      <li>Relancez une collecte depuis l'écran Make.</li>
+    </ol>
+    <p>Une adresse mal formée est refusée : l'ancienne est conservée et un message rouge
+       nomme l'enseigne concernée. Vider le champ retire l'enseigne de la collecte.</p>
+
+    <h3>Que faire si</h3>
+    <ul>
+      <li><b>L'écran Offres est vide sur le PC mais pas sur l'iPhone</b> — connectez-vous
+          à OneDrive sur le PC : la connexion vaut par appareil.</li>
+      <li><b>Une enseigne est signalée en rouge</b> — son adresse de folder a changé,
+          corrigez-la dans les Réglages.</li>
+      <li><b>Le bandeau d'état reste ambre</b> — une enseigne n'a pas produit de fichier.
+          Relancez la collecte.</li>
+      <li><b>Une offre n'a pas de pastille</b> — elle ne correspond à aucune ligne.
+          Ajoutez le terme manquant dans les mots-clés.</li>
+      <li><b>Le numéro de version n'est pas le bon</b> — fermez complètement l'application
+          et rouvrez-la.</li>
+    </ul>
+
+    <h3>Ce que l'application ne fait pas</h3>
+    <ul>
+      <li>Elle ne relève que les promotions des folders, pas les prix courants des fiches produits.</li>
+      <li>Elle ne couvre que les enseignes configurées : les autres restent en relevé manuel.</li>
+      <li>Elle ne commande rien.</li>
+      <li>Elle ne vérifie pas vos critères techniques — cartouche 35 mm, niveau sonore,
+          classe de peinture. Cela reste à contrôler en magasin.</li>
+    </ul>
+
+    <p class="note" style="margin-top:18px">Suivi Promo v${VERSION}.
+       Les prix affichés sont ceux lus dans les folders à la date de la collecte et doivent
+       être confirmés en magasin avant toute commande importante.</p>`;
+}
+
 /* ---------- Navigation ---------- */
 document.querySelectorAll("nav button").forEach(b=>{
   b.onclick=()=>{
@@ -1271,11 +1470,13 @@ function rendreTout(){
   document.getElementById("vue-reglages").hidden = vue!=="reglages";
   document.getElementById("vue-offres").hidden   = vue!=="offres";
   document.getElementById("vue-make").hidden     = vue!=="make";
+  document.getElementById("vue-aide").hidden     = vue!=="aide";
   if(vue==="liste")    rendreListe();
   if(vue==="panier"){  rendrePanier(); majResume(); }
   if(vue==="reglages"){rendreReglages(); majResume(); }
   if(vue==="offres"){  rendreOffres(); majResume(); }
   if(vue==="make"){    rendreMake(); majResume(); }
+  if(vue==="aide"){    rendreAide(); majResume(); }
 }
 /* ---------- Démarrage ---------- */
 (async function demarrer(){
