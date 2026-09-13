@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v2.7</title>
+<title>Suivi Promo v2.8</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -148,7 +148,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v2.7</span></h1>
+  <h1>Suivi Promo<span class="v">v2.8</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -204,7 +204,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "2.7";
+const VERSION = "2.8";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -1066,9 +1066,9 @@ function rendreOffres(){
   // --- Vue par groupes : catégories de matériel ou enseignes ---
   const selecteur = `
     <div class="vues">
-      <button id="voCategorie" aria-pressed="${vueOffres==="categorie"}">Par catégorie</button>
-      <button id="voEnseigne" aria-pressed="${vueOffres==="enseigne"}">Par enseigne</button>
-      <button id="voTout" aria-pressed="${vueOffres==="tout"}">Tout</button>
+      <button type="button" data-vo="categorie" aria-pressed="${vueOffres==="categorie"}">Par catégorie</button>
+      <button type="button" data-vo="enseigne" aria-pressed="${vueOffres==="enseigne"}">Par enseigne</button>
+      <button type="button" data-vo="tout" aria-pressed="${vueOffres==="tout"}">Tout</button>
     </div>`;
 
   toutes.sort((a,b)=>{
@@ -1157,11 +1157,20 @@ function rendreOffres(){
 }
 
 function brancherOffres(){
-  const vues = [["voCategorie","categorie"],["voEnseigne","enseigne"],["voTout","tout"]];
-  vues.forEach(([id, valeur])=>{
-    const b = document.getElementById(id);
-    if(b) b.onclick = ()=>{ vueOffres = valeur; rendreOffres(); };
-  });
+  // Les boutons de vue sont recréés à chaque affichage. Plutôt que de les
+  // recâbler un par un, on écoute une seule fois le conteneur, qui lui est
+  // permanent : le clic remonte jusqu'à lui (délégation d'événement).
+  const zone = document.getElementById("vue-offres");
+  if(zone && !zone.dataset.deleguee){
+    zone.dataset.deleguee = "1";
+    zone.addEventListener("click", ev=>{
+      const b = ev.target && ev.target.closest ? ev.target.closest("[data-vo]") : null;
+      if(!b) return;
+      ev.preventDefault();
+      vueOffres = b.getAttribute("data-vo");
+      rendreOffres();
+    });
+  }
   const r = document.getElementById("ofRafraichir");
   if(r) r.onclick = chargerCollectes;
   const d = document.getElementById("ofDeconnexion");
