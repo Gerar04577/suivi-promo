@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v2.6</title>
+<title>Suivi Promo v2.7</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -148,7 +148,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v2.6</span></h1>
+  <h1>Suivi Promo<span class="v">v2.7</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -204,7 +204,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "2.6";
+const VERSION = "2.7";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -1066,9 +1066,9 @@ function rendreOffres(){
   // --- Vue par groupes : catégories de matériel ou enseignes ---
   const selecteur = `
     <div class="vues">
-      <button data-vo="categorie" aria-pressed="${vueOffres==="categorie"}">Par catégorie</button>
-      <button data-vo="enseigne"  aria-pressed="${vueOffres==="enseigne"}">Par enseigne</button>
-      <button data-vo="tout"      aria-pressed="${vueOffres==="tout"}">Tout</button>
+      <button id="voCategorie" aria-pressed="${vueOffres==="categorie"}">Par catégorie</button>
+      <button id="voEnseigne" aria-pressed="${vueOffres==="enseigne"}">Par enseigne</button>
+      <button id="voTout" aria-pressed="${vueOffres==="tout"}">Tout</button>
     </div>`;
 
   toutes.sort((a,b)=>{
@@ -1157,8 +1157,10 @@ function rendreOffres(){
 }
 
 function brancherOffres(){
-  document.querySelectorAll("#vue-offres .vues button").forEach(b=>{
-    b.onclick = ()=>{ vueOffres = b.dataset.vo; rendreOffres(); };
+  const vues = [["voCategorie","categorie"],["voEnseigne","enseigne"],["voTout","tout"]];
+  vues.forEach(([id, valeur])=>{
+    const b = document.getElementById(id);
+    if(b) b.onclick = ()=>{ vueOffres = valeur; rendreOffres(); };
   });
   const r = document.getElementById("ofRafraichir");
   if(r) r.onclick = chargerCollectes;
