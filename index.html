@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v2.4</title>
+<title>Suivi Promo v2.5</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -101,6 +101,10 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 .bandeau .gros{font-size:24px;font-weight:600;color:var(--gain)}
 .bandeau .lab{font-size:13px;color:var(--sourdine)}
 
+.alerte-bloc{background:var(--alerte-fond);border-left:5px solid var(--alerte);
+  border-radius:var(--r);padding:12px 14px;margin-bottom:14px}
+.alerte-bloc .titre{font-size:14.5px;font-weight:700;color:var(--alerte);margin:0 0 6px}
+.alerte-bloc p{margin:3px 0;font-size:13px;line-height:1.45}
 .offre{background:var(--carte);border:1px solid var(--trait);border-radius:var(--r);
   padding:11px 13px;margin-bottom:8px}
 .offre .t1{font-size:14.5px;font-weight:600}
@@ -126,7 +130,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v2.4</span></h1>
+  <h1>Suivi Promo<span class="v">v2.5</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -182,7 +186,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "2.4";
+const VERSION = "2.5";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -939,6 +943,35 @@ function prixOffre(o){
   return v > 1000 ? v/100 : v;
 }
 
+// Une enseigne est signalée quand ses deux dernières collectes n'ont rien
+// rapporté. Une seule collecte vide n'alerte pas : un folder peut
+// simplement ne contenir aucune promotion de la liste.
+function enseignesMuettes(){
+  const parEnseigne = {};
+  collectes.forEach(c=>{
+    const code = c.enseigne || "";
+    if(!code) return;
+    (parEnseigne[code] = parEnseigne[code] || []).push(c);
+  });
+
+  const muettes = [];
+  Object.keys(parEnseigne).forEach(code=>{
+    const lot = parEnseigne[code].slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    if(lot.length < 2) return;
+    const deuxDernieres = lot.slice(0,2);
+    if(deuxDernieres.some(c=>c.offres.length)) return;
+    const derniereBonne = lot.find(c=>c.offres.length);
+    const e = enseigne(code);
+    muettes.push({
+      code,
+      nom: e ? e.nom : code.split("-").map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(" "),
+      depuis: derniereBonne ? derniereBonne.date : "",
+      vides: lot.filter(c=>!c.offres.length).length
+    });
+  });
+  return muettes;
+}
+
 function rendreOffres(){
   const el = document.getElementById("vue-offres");
   if(!el) return;
@@ -983,7 +1016,13 @@ function rendreOffres(){
   }
 
   if(!toutes.length){
-    el.innerHTML = `${tete}
+    const m0 = enseignesMuettes();
+    const a0 = m0.length ? `
+      <div class="alerte-bloc">
+        <p class="titre">${m0.length} enseigne${m0.length>1?"s":""} sans résultat</p>
+        ${m0.map(m=>`<p><b>${m.nom}</b> — ${m.vides} collectes sans résultat. Vérifiez l'adresse du folder.</p>`).join("")}
+      </div>` : "";
+    el.innerHTML = `${tete}${a0}
       <p class="vide">Aucune offre dans le dossier Suivi Promo.<br>
       Il se remplira à la première collecte lancée depuis l'onglet Make.</p>`;
     brancherOffres();
@@ -1016,7 +1055,17 @@ function rendreOffres(){
       </article>`;
   }).join("");
 
-  el.innerHTML = `${tete}
+  const muettes = enseignesMuettes();
+  const alerte = muettes.length ? `
+    <div class="alerte-bloc">
+      <p class="titre">${muettes.length === 1 ? "Une enseigne ne renvoie plus rien"
+                                              : muettes.length + " enseignes ne renvoient plus rien"}</p>
+      ${muettes.map(m=>`<p><b>${m.nom}</b> — ${m.vides} collectes sans résultat${
+        m.depuis ? ", dernière réussie le " + dateFr(m.depuis) : ", jamais de résultat"
+      }. Vérifiez l'adresse du folder.</p>`).join("")}
+    </div>` : "";
+
+  el.innerHTML = `${tete}${alerte}
     <div class="bandeau">
       <div class="gros chiffre">${toutes.length}</div>
       <div class="lab">offres collectées · ${liees} rattachées à vos lignes ·
