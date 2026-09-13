@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v3.4</title>
+<title>Suivi Promo v3.8</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -159,7 +159,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v3.4</span></h1>
+  <h1>Suivi Promo<span class="v">v3.8</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -217,7 +217,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "3.4";
+const VERSION = "3.8";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -331,7 +331,13 @@ function completerProduits(liste){
   enregistres.forEach(p=>{
     const d = PRODUITS_DEFAUT.find(x=>x.id === p.id);
     if(!d) return;
-    ["famille","motscles","exclure","precision","unites"].forEach(champ=>{
+    // Les mots-clés, les exclusions et la famille servent au rattachement
+    // des offres. Ce sont des réglages techniques, affinés à chaque version :
+    // ils sont toujours repris des valeurs à jour.
+    ["famille","motscles","exclure"].forEach(champ=>{ p[champ] = d[champ]; });
+    // Le nom, la description et le nombre d'unités vous appartiennent :
+    // ils ne sont complétés que s'ils manquent.
+    ["nom","precision","unites"].forEach(champ=>{
       if(p[champ] === undefined || p[champ] === null || p[champ] === "") p[champ] = d[champ];
     });
   });
@@ -612,14 +618,9 @@ function rendreReglages(){
     <div class="duo"><button class="action" id="cfFolders">Enregistrer les adresses</button></div>
     <div id="cfFoldersEtat" class="etat" style="display:none"></div>
 
-    <h2>Données</h2>
-    <div class="duo">
-      <button class="action pale" id="cfExport">Exporter</button>
-      <button class="action pale" id="cfImport">Importer</button>
-    </div>
     <p class="note">Suivi Promo v${VERSION} · ${etat.releves.length} relevés.
       Les quatre premiers proviennent d'un relevé en ligne du 8 septembre 2026.</p>
-    <input id="cfFichier" type="file" accept="application/json" hidden>`;
+`;
 
   document.getElementById("cfEnr").onclick=()=>{
     const u = parseInt(document.getElementById("cfUnites").value)||1;
@@ -654,29 +655,6 @@ function rendreReglages(){
   el.querySelectorAll("[data-km]").forEach(inp=>{
     inp.onchange=()=>{ enseigne(inp.dataset.km).km = parseFloat(inp.value)||0; sauver(); };
   });
-  document.getElementById("cfExport").onclick=()=>{
-    const blob = new Blob([JSON.stringify(etat,null,2)],{type:"application/json"});
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "suivi-promo-"+aujourdhui()+".json";
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  };
-  document.getElementById("cfImport").onclick=()=>document.getElementById("cfFichier").click();
-  document.getElementById("cfFichier").onchange=ev=>{
-    const f=ev.target.files[0]; if(!f) return;
-    const lect=new FileReader();
-    lect.onload=()=>{
-      try{
-        const d=JSON.parse(lect.result);
-        if(!d.produits||!d.enseignes) throw new Error("format");
-        etat={produits:d.produits, enseignes:d.enseignes, releves:d.releves||[],
-              reglages:Object.assign({},REGLAGES_DEFAUT,d.reglages||{})};
-        sauver(); rendreTout();
-      }catch(err){ alert("Ce fichier n'est pas un export Suivi Promo."); }
-    };
-    lect.readAsText(f);
-  };
 }
 
 /* ---------- Make ---------- */
