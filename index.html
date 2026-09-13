@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v3.3</title>
+<title>Suivi Promo v3.4</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -159,7 +159,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v3.3</span></h1>
+  <h1>Suivi Promo<span class="v">v3.4</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -217,7 +217,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "3.3";
+const VERSION = "3.4";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -238,15 +238,15 @@ const ENSEIGNES_DEFAUT = [
 ];
 
 const PRODUITS_DEFAUT = [
-  {id:"p01", nom:"Mitigeur lavabo",         precision:"cartouche 35 mm",            unites:50, motscles:"mitigeur lavabo robinet", exclure:"evier douche cuisine", famille:"robinetterie"},
-  {id:"p02", nom:"Mitigeur évier",          precision:"cartouche 35 mm, bec bas",   unites:50, motscles:"mitigeur evier robinet cuisine", exclure:"lavabo douche", famille:"robinetterie"},
-  {id:"p03", nom:"Mitigeur douche",         precision:"mécanique, cartouche 35 mm", unites:50, motscles:"mitigeur douche colonne", exclure:"lavabo evier thermostatique", famille:"robinetterie"},
+  {id:"p01", nom:"Mitigeur lavabo",         precision:"cartouche 35 mm",            unites:50, motscles:"mitigeur lavabo", exclure:"evier douche peinture laque vernis enduit", famille:"robinetterie"},
+  {id:"p02", nom:"Mitigeur évier",          precision:"cartouche 35 mm, bec bas",   unites:50, motscles:"mitigeur evier cuisine", exclure:"lavabo douche peinture laque vernis enduit carrelage", famille:"robinetterie"},
+  {id:"p03", nom:"Mitigeur douche",         precision:"mécanique, cartouche 35 mm", unites:50, motscles:"mitigeur douche colonne", exclure:"lavabo evier thermostatique peinture laque vernis", famille:"robinetterie"},
   {id:"p04", nom:"Douchette et flexible",   precision:"flexible 1,5 m, 1 jet",      unites:50, motscles:"douchette flexible pommeau", exclure:"robinet mitigeur", famille:"robinetterie"},
   {id:"p05", nom:"Robinet d'arrêt équerre", precision:"avec flexible inox",         unites:50, motscles:"robinet arret equerre vanne", exclure:"mitigeur lavabo douche", famille:"robinetterie"},
-  {id:"p06", nom:"Peinture lavable",        precision:"blanc mat, seau 10 L",       unites:50, motscles:"peinture mur plafond latex acrylique", exclure:"antifongique bois metal sol", famille:"peintures"},
+  {id:"p06", nom:"Peinture lavable",        precision:"blanc mat, seau 10 L",       unites:50, motscles:"peinture laque mur plafond latex acrylique carrelage", exclure:"antifongique bois metal sol exterieur facade", famille:"peintures"},
   {id:"p07", nom:"Peinture antifongique",   precision:"blanc satiné, 2,5 L",        unites:50, motscles:"peinture antifongique antimoisissure salle de bain", exclure:"mur plafond sol bois", famille:"peintures"},
   {id:"p08", nom:"Extracteur silencieux",   precision:"Ø 100, sous 30 dB",          unites:50, motscles:"extracteur ventilateur aerateur ventilation", exclure:"jus centrifugeuse fruit hotte", famille:"ventilation"},
-  {id:"p09", nom:"Hotte de cuisine",        precision:"60 cm, recyclage",           unites:50, motscles:"hotte aspirante cuisine", exclure:"filtre extracteur", famille:"electromenager"},
+  {id:"p09", nom:"Hotte de cuisine",        precision:"60 cm, recyclage",           unites:50, motscles:"hotte aspirante", exclure:"filtre extracteur peinture laque vernis enduit carrelage", famille:"electromenager"},
   {id:"p10", nom:"Radiateur 1500 W",        precision:"thermostat électronique",    unites:50, motscles:"radiateur convecteur chauffage panneau rayonnant", exclure:"seche serviette eau", famille:"chauffage"},
   {id:"p11", nom:"Réfrigérateur table top", precision:"90 à 130 L",                 unites:50, motscles:"refrigerateur frigo", exclure:"congelateur combine americain lave cuisson encastrable", famille:"electromenager"},
   {id:"p12", nom:"Plaque de cuisson",      precision:"induction posable, 2 feux",  unites:50, motscles:"plaque cuisson taque rechaud induction", exclure:"four hotte micro-ondes gaz vitroceramique vitro encastrable cuisiniere domino", famille:"electromenager"},
@@ -1118,17 +1118,49 @@ function enseignesMuettes(){
 }
 
 // "10 L", "2,5 L", "5L", "750 ml" -> nombre de litres
+// "10 L", "2,5 L", "750 ml", et les formes promotionnelles :
+// "5 L + 20% gratuits" vaut 6 L, "8 + 2 L gratuits" vaut 10 L.
 function litres(contenance){
   if(!contenance) return null;
   const t = String(contenance).toLowerCase().replace(",", ".");
+  // forme "8 + 2 L" : les deux nombres partagent l'unité
+  const duo = t.match(/([\d.]+)\s*\+\s*([\d.]+)\s*(l|ml|litre)/);
+  if(duo){
+    let a = parseFloat(duo[1]), b = parseFloat(duo[2]);
+    if(isFinite(a) && isFinite(b) && a > 0){
+      if(duo[3] === "ml"){ a = a/1000; b = b/1000; }
+      return a + b;
+    }
+  }
   const m = t.match(/([\d.]+)\s*(l|ml|litre)/);
   if(!m) return null;
-  const v = parseFloat(m[1]);
+  let v = parseFloat(m[1]);
   if(!isFinite(v) || v <= 0) return null;
-  return m[2] === "ml" ? v/1000 : v;
+  if(m[2] === "ml") v = v/1000;
+
+  // pourcentage offert : + 20 % gratuits
+  const pct = t.match(/\+\s*([\d.]+)\s*%/);
+  if(pct){
+    const p = parseFloat(pct[1]);
+    if(isFinite(p) && p > 0 && p < 200) return v * (1 + p/100);
+  }
+  // volume offert : 8 + 2 L gratuits
+  const plus = t.match(/\+\s*([\d.]+)\s*(l|ml|litre)/);
+  if(plus){
+    let b = parseFloat(plus[1]);
+    if(isFinite(b) && b > 0){
+      if(plus[2] === "ml") b = b/1000;
+      return v + b;
+    }
+  }
+  return v;
 }
 
+// Le prix au litre n'a de sens que pour un produit vendu au volume.
+// Une contenance relevée sur un mitigeur ou une hotte ne doit rien produire.
 function prixAuLitre(o){
+  const ligne = ligneCorrespondante(o);
+  if(!ligne || ligne.famille !== "peintures") return null;
   const p = prixOffre(o), l = litres(o.contenance);
   return (p != null && l) ? p/l : null;
 }
