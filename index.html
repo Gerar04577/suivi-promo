@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Suivi Promo">
 <meta name="theme-color" content="#2f4358">
-<title>Suivi Promo v3.8</title>
+<title>Suivi Promo v3.9</title>
 <style>
 :root{
   --encre:#1c2733;--papier:#f2f0ec;--carte:#ffffff;--trait:#d9d5cd;
@@ -159,7 +159,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 <body>
 
 <header>
-  <h1>Suivi Promo<span class="v">v3.8</span></h1>
+  <h1>Suivi Promo<span class="v">v3.9</span></h1>
   <p class="resume" id="resume"></p>
 </header>
 
@@ -217,7 +217,7 @@ dialog .sous{margin:0;font-size:13px;color:var(--sourdine)}
 
 <script>
 "use strict";
-const VERSION = "3.8";
+const VERSION = "3.9";
 const CLE = "suivi-promo";
 const CLES_ANCIENNES = ["suivi-promo-v16","suivi-promo-v15","suivi-promo-v14","suivi-promo-v13","suivi-promo-v12"];
 
@@ -251,9 +251,9 @@ const PRODUITS_DEFAUT = [
   {id:"p11", nom:"Réfrigérateur table top", precision:"90 à 130 L",                 unites:50, motscles:"refrigerateur frigo", exclure:"congelateur combine americain lave cuisson encastrable", famille:"electromenager"},
   {id:"p12", nom:"Plaque de cuisson",      precision:"induction posable, 2 feux",  unites:50, motscles:"plaque cuisson taque rechaud induction", exclure:"four hotte micro-ondes gaz vitroceramique vitro encastrable cuisiniere domino", famille:"electromenager"},
   {id:"p13", nom:"Pack WC au sol",        precision:"cuvette + réservoir, sortie horizontale ou verticale", unites:50, motscles:"wc toilette cuvette pack", exclure:"suspendu bati encastrer lave-mains abattant seul broyeur", famille:"sanitaire"},
-  {id:"p14", nom:"Plafonnier",            precision:"culot standard E27, pas de LED intégrée", unites:50, motscles:"plafonnier luminaire plafond", exclure:"spot encastre applique reglette exterieur jardin", famille:"eclairage"},
-  {id:"p15", nom:"Applique lavabo",       precision:"culot standard, pas de LED intégrée",     unites:50, motscles:"applique murale miroir", exclure:"plafonnier reglette spot exterieur jardin", famille:"eclairage"},
-  {id:"p16", nom:"Réglette cuisine",      precision:"culot standard, sous meuble",             unites:50, motscles:"reglette tube sous-meuble barre", exclure:"plafonnier applique spot exterieur jardin", famille:"eclairage"}
+  {id:"p14", nom:"Plafonnier",            precision:"culot standard E27, pas de LED intégrée", unites:50, motscles:"plafonnier luminaire plafond spot", exclure:"encastre encastrable applique reglette tube exterieur jardin ampoule douille", famille:"eclairage"},
+  {id:"p15", nom:"Applique lavabo",       precision:"culot standard, pas de LED intégrée",     unites:50, motscles:"applique murale miroir", exclure:"plafonnier reglette tube spot exterieur jardin ampoule", famille:"eclairage"},
+  {id:"p16", nom:"Réglette cuisine",      precision:"culot standard, sous meuble",             unites:50, motscles:"reglette tube sous-meuble barre", exclure:"plafonnier applique exterieur jardin ampoule", famille:"eclairage"}
 ];
 
 // Familles de matériel : regroupent les lignes pour l'affichage par catégorie.
@@ -262,12 +262,12 @@ const PRODUITS_DEFAUT = [
 // ne rapporte rien et coûte des jetons.
 const CIBLES = {
   electro: {
-    cat:"réfrigérateur de table sans congélateur, plaque de cuisson, radiateur électrique de chauffage, hotte de cuisine, extracteur d'air de ventilation, plafonnier, applique murale, réglette",
-    hors:"extracteur de jus, congélateur, combiné, lave-linge, lave-vaisselle, sèche-linge, four, micro-ondes, téléviseur, aspirateur, cafetière, friteuse, spot encastré"
+    cat:"réfrigérateur de table sans congélateur, plaque de cuisson, radiateur électrique de chauffage, hotte de cuisine, extracteur d'air de ventilation, plafonnier, spot apparent, applique murale, réglette tube",
+    hors:"extracteur de jus, congélateur, combiné, lave-linge, lave-vaisselle, sèche-linge, four, micro-ondes, téléviseur, aspirateur, cafetière, friteuse, spot encastré, ampoule seule, douille"
   },
   bricolage: {
-    cat:"mitigeur de lavabo, mitigeur d'évier, mitigeur de douche, douchette et flexible, robinet d'arrêt équerre, peinture murale intérieure, peinture antifongique, extracteur d'air de ventilation, hotte de cuisine, pack WC au sol avec cuvette et réservoir, plafonnier, applique murale, réglette",
-    hors:"outillage, machines, jardin, terrasse, bois, isolation, pellets, piles, ampoules, décoration, tondeuse, barbecue, WC suspendu, bâti-support, spot encastré"
+    cat:"mitigeur de lavabo, mitigeur d'évier, mitigeur de douche, douchette et flexible, robinet d'arrêt équerre, peinture murale intérieure, peinture antifongique, extracteur d'air de ventilation, hotte de cuisine, pack WC au sol avec cuvette et réservoir, plafonnier, spot apparent en saillie ou sur barre, applique murale, réglette tube",
+    hors:"outillage, machines, jardin, terrasse, bois, isolation, pellets, piles, ampoules, décoration, tondeuse, barbecue, WC suspendu, bâti-support, spot encastré, ampoule seule, douille, guirlande"
   }
 };
 
