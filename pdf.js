@@ -1,0 +1,1141 @@
+/* EDL — Procès-verbal en PDF   ·   pdf 2.34.8 (14/09/2026) : clause d'aménagement et de
+   déménagement du mobilier imprimée sur la page de prêt, après l'indemnité.
+
+   2.34.4 : marque de version seule, alignée sur app 2.34.4.
+
+   2.34.3 : marque de version seule, alignée sur app 2.34.3. Aucune ligne de
+   fabrication du procès-verbal n'est touchée.
+
+   2.34.2 : marque de version seulement.
+
+   2.34.1 : titres des pages « avenant au bail » et « prêt de meubles » en
+   rouge et gras (même rouge que le bloc « Bail » de l'application). Le
+   texte imprimé est inchangé.
+
+   2.34.0 : page « prêt de meubles » de la S.A. SAMADHI jointe au PV
+   d'ENTRÉE (après l'avenant, avant les signatures), refusée sans
+   description du mobilier ; mentions juridiques du prêt, combinées avec
+   celles de l'avenant ; double qualité de GERARD Julien au bloc des
+   signatures. Sans prêt joint, le document est inchangé.
+
+   2.33.2 : les blocs qui ne doivent jamais être coupés — portée, mention
+   des photographies non déposées, signatures — réservent leur place par
+   MESURE du texte réel et non plus par une hauteur estimée. Avec l'avenant
+   et une colocation, le bloc des signatures était coupé par un saut de
+   page. Le texte imprimé est inchangé.
+
+   2.33.0 : page « avenant au bail » (calcul des charges) jointe au PV
+   d'ENTRÉE, modèle propre à chaque immeuble ; puce du protocole, portée et
+   bloc des signatures complétés quand l'avenant est joint. Sans avenant,
+   le document est inchangé.
+
+   Fabriqué dans le navigateur de l'iPhone, sans aucun service extérieur :
+   le chemin de la signature ne doit dépendre de rien.
+
+   Structure, reprise du rapport du géomètre-expert :
+     1. Protocole de signature
+     2. Informations du bien, parties, dates
+     3. Constatations pièce par pièce, avec renvoi aux photos
+     4. Relevé des compteurs
+     5. Équipements, clés, état général
+     6. Chiffrage, si activé
+     7. Signatures et horodatage
+*/
+
+/* Marque de version : comparée à celle d'app.js avant toute fabrication. */
+var VERSION_PDF_JS = "2.34.8";
+
+/* Rouge des titres d'avenant et de prêt : #c0392b, celui du bloc « Bail ». */
+var PDF_ROUGE_TITRE = [192, 57, 43];
+
+var PDF_MARGE = 18;
+var PDF_LARGEUR = 210;
+var PDF_HAUTEUR = 297;
+
+/* Texte provisoire, À FAIRE RELIRE PAR UN AVOCAT avant tout usage réel.
+   La clause mère doit figurer au bail ; ceci n'en est que le rappel. */
+var PROTOCOLE_PROVISOIRE = [
+  "Les parties conviennent expressément que le présent état des lieux est dressé " +
+  "contradictoirement sur support numérique au moyen de l'application du bailleur.",
+  "Elles reconnaissent que la signature manuscrite apposée sur l'écran tactile manifeste " +
+  "leur consentement et constitue une signature au sens du Livre 8 du Code civil.",
+  "Elles reconnaissent la date et l'heure figurant au présent document, ainsi que le fait " +
+  "que les photographies référencées font partie intégrante de l'état des lieux.",
+  "Le preneur reconnaît avoir pris connaissance de l'intégralité du document avant de le signer, " +
+  "et accepte que sa transmission à l'adresse électronique qu'il a déclarée vaille communication.",
+  "L'identité des signataires a été vérifiée sur présentation de la carte d'identité, " +
+  "en présence des deux parties.",
+];
+
+function nouveauDocument() {
+  const J = (typeof jspdf !== "undefined") ? jspdf : window.jspdf;
+  return new J.jsPDF({ unit: "mm", format: "a4", compress: true });
+}
+
+function dateFr(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  /* Secondes comprises : l'horodatage applicatif doit être précis. */
+  return d.toLocaleDateString("fr-BE") + " à " + d.toLocaleTimeString("fr-BE");
+}
+
+function dateCourteFr(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  return d.toLocaleDateString("fr-BE");
+}
+
+/* Durée d'occupation — exigée au procès-verbal de sortie par l'article 27,
+   §5, 4°, du décret wallon.
+
+   ELLE SE COMPTE DEPUIS L'ÉTAT DES LIEUX D'ENTRÉE, ET DEPUIS RIEN D'AUTRE.
+   Les baux sont annuels et reconduits : la date du bail courant ne dit
+   rien de l'occupation. Un repli sur elle donnait onze mois là où le
+   locataire occupait depuis trois ans. Sans date d'entrée, la ligne reste
+   vide — c'est la comparaison entrée/sortie qui la renseigne. */
+function dureeOccupation(depuisIso, jusquIso) {
+  if (!depuisIso) return null;
+  const a = new Date(depuisIso), b = new Date(jusquIso || Date.now());
+  if (isNaN(a) || isNaN(b) || b < a) return null;
+  let mois = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+  if (b.getDate() < a.getDate()) mois--;
+  if (mois < 1) return "moins d'un mois";
+  const ans = Math.floor(mois / 12), reste = mois % 12;
+  const m = [];
+  if (ans) m.push(ans + (ans > 1 ? " ans" : " an"));
+  if (reste) m.push(reste + " mois");
+  return m.join(" et ");
+}
+
+/* Durée du bail — le dernier jour est COMPRIS. Un bail du 1er septembre au
+   31 août couvre une année entière ; compté de date à date, il afficherait
+   « 11 mois », ce qu'aucun locataire ne reconnaîtrait. On compte donc
+   jusqu'au lendemain du terme. */
+function dureeBail(debutIso, finIso) {
+  if (!debutIso || !finIso) return null;
+  const f = new Date(finIso);
+  if (isNaN(f)) return null;
+  f.setDate(f.getDate() + 1);
+  return dureeOccupation(debutIso, f.toISOString());
+}
+
+/* Le bail est-il arrivé à son terme au jour de la signature ? Commande la
+   rédaction de la clause de libération de la garantie. Une date de fin
+   inconnue vaut « pas encore arrivé à terme » : c'est le cas prudent. */
+function bailArriveAuTerme(V) {
+  const fin = (V.bail || {}).fin;
+  if (!fin) return false;
+  const f = new Date(fin), j = new Date(V.date_signature || Date.now());
+  if (isNaN(f) || isNaN(j)) return false;
+  return j >= f;
+}
+
+function libelleEtat(v) {
+  return ({ neuf: "état neuf", bon_etat: "bon état", usage: "usagé", degrade: "dégradé" })[v] || null;
+}
+function libelleProprete(v) {
+  return ({ propre: "propre", a_nettoyer: "à nettoyer", sale: "sale" })[v] || null;
+}
+
+/* Le générateur tient un curseur vertical et gère lui-même les sauts de page :
+   sans cela, un long constat déborderait silencieusement hors de la feuille. */
+function creerPlume(doc) {
+  let y = PDF_MARGE;
+  let page = 1;
+
+  const place = (hauteur) => {
+    if (y + hauteur > PDF_HAUTEUR - PDF_MARGE - 8) {
+      doc.addPage(); page++; y = PDF_MARGE;
+      return true;
+    }
+    return false;
+  };
+
+  /* La palette. Fond très clair, filet soutenu, texte sombre de la même
+     famille : le titre reste lisible sur le fond, y compris imprimé en
+     nuances de gris. */
+  const TEINTES = [
+    { fond: [220, 233, 245], filet: [ 74, 127, 168], texte: [ 27,  58,  82], droite: [ 47,  90, 120] },
+    { fond: [228, 239, 220], filet: [107, 148,  85], texte: [ 46,  69,  34], droite: [ 71,  99,  47] },
+    { fond: [245, 228, 220], filet: [181, 118,  79], texte: [ 92,  53,  32], droite: [125,  74,  44] },
+    { fond: [237, 228, 240], filet: [138, 107, 153], texte: [ 64,  47,  73], droite: [ 90,  66, 102] },
+    { fond: [245, 239, 216], filet: [168, 145,  63], texte: [ 78,  67,  24], droite: [110,  94,  34] },
+  ];
+  let iTeinte = 0;
+
+  const HAUT_BANDEAU = 11;
+
+  function poserBandeau(t, texte, droite) {
+    /* Un bandeau ne doit jamais se trouver seul en bas de page, séparé de
+       ce qu'il annonce : on réserve de quoi loger deux lignes avec lui. */
+    place(HAUT_BANDEAU + 14);
+    const l = PDF_LARGEUR - 2 * PDF_MARGE;
+
+    doc.setFillColor(t.fond[0], t.fond[1], t.fond[2]);
+    doc.rect(PDF_MARGE, y, l, HAUT_BANDEAU, "F");
+    doc.setFillColor(t.filet[0], t.filet[1], t.filet[2]);
+    doc.rect(PDF_MARGE, y, 1.6, HAUT_BANDEAU, "F");
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(15);
+    doc.setTextColor(t.texte[0], t.texte[1], t.texte[2]);
+    doc.text(String(texte), PDF_MARGE + 4.5, y + 7.8);
+
+    if (droite) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
+      doc.setTextColor(t.droite[0], t.droite[1], t.droite[2]);
+      doc.text(String(droite), PDF_LARGEUR - PDF_MARGE - 3, y + 7.6, { align: "right" });
+    }
+
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    y += HAUT_BANDEAU + 5;
+  }
+
+  return {
+    get y() { return y; },
+    /* Remet la palette à sa première teinte : les pièces repartent du bleu
+       à chaque procès-verbal. */
+    reprendreTeintes() { iTeinte = 0; },
+    set y(v) { y = v; },
+    get page() { return page; },
+
+    saut(h) { place(h || 0); y += (h || 4); },
+
+    /* BANDEAUX PASTEL.
+
+       Un procès-verbal de dix pièces devient illisible en colonne
+       uniforme : on cherche une pièce et on relit tout. Un bandeau de
+       couleur, sur toute la largeur, permet de la trouver en feuilletant.
+
+       Cinq teintes qui TOURNENT DANS L'ORDRE, sans lien avec la nature de
+       la pièce : deux pièces voisines ne se ressemblent jamais, et la règle
+       n'a rien à connaître des libellés. Chacune a un fond très clair et un
+       filet plus soutenu à gauche.
+
+       La droite du bandeau reçoit l'état général — bon état, propre — là où
+       l'œil le cherche une fois la pièce repérée. */
+    bandeau(texte, droite) {
+      const t = TEINTES[iTeinte % TEINTES.length];
+      iTeinte++;
+      poserBandeau(t, texte, droite);
+    },
+
+    /* Même bandeau, teinte imposée : pour les sections qui ne sont pas des
+       pièces et qu'on veut distinguer d'un coup d'œil. */
+    bandeauFixe(indice, texte, droite) {
+      poserBandeau(TEINTES[indice % TEINTES.length], texte, droite);
+    },
+
+    titre(texte) {
+      place(14);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+      doc.text(texte, PDF_MARGE, y); y += 6;
+      doc.setDrawColor(31, 78, 95); doc.setLineWidth(0.4);
+      doc.line(PDF_MARGE, y, PDF_LARGEUR - PDF_MARGE, y); y += 6;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    },
+
+    sousTitre(texte) {
+      place(9);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+      doc.text(texte, PDF_MARGE, y); y += 6;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    },
+
+    paragraphe(texte, options) {
+      const o = options || {};
+      doc.setFont("helvetica", o.gras ? "bold" : "normal");
+      doc.setFontSize(o.taille || 10);
+      const largeur = PDF_LARGEUR - 2 * PDF_MARGE - (o.retrait || 0);
+      const lignes = doc.splitTextToSize(String(texte == null ? "" : texte), largeur);
+      lignes.forEach(l => {
+        place(6);
+        doc.text(l, PDF_MARGE + (o.retrait || 0), y);
+        y += 4.8;
+      });
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    },
+
+    ligne(gauche, droite) {
+      place(6);
+      doc.setFontSize(10);
+      doc.setTextColor(90); doc.text(String(gauche), PDF_MARGE, y);
+      doc.setTextColor(0);
+      const t = String(droite == null || droite === "" ? "—" : droite);
+      doc.text(t, PDF_LARGEUR - PDF_MARGE, y, { align: "right" });
+      y += 5.5;
+    },
+
+    filet() {
+      place(4);
+      doc.setDrawColor(220); doc.setLineWidth(0.2);
+      doc.line(PDF_MARGE, y, PDF_LARGEUR - PDF_MARGE, y); y += 4;
+    },
+  };
+}
+
+// --- Réservation de place par mesure ------------------------------------
+
+/* Limite basse utile : la même que celle de creerPlume().place(). */
+var PDF_BAS_UTILE = PDF_HAUTEUR - PDF_MARGE - 8;
+var PDF_BANDEAU = 16;          // hauteur d'un bandeau et de son espacement
+
+/* Hauteur exacte d'une suite de paragraphes, mesurée avec la même police,
+   la même taille et la même largeur que creerPlume().paragraphe. */
+function hauteurTextes(doc, elements) {
+  let h = 0;
+  elements.forEach(e => {
+    doc.setFont("helvetica", e.gras ? "bold" : "normal");
+    doc.setFontSize(e.taille || 10);
+    const largeur = PDF_LARGEUR - 2 * PDF_MARGE - (e.retrait || 0);
+    h += doc.splitTextToSize(String(e.texte == null ? "" : e.texte), largeur).length * 4.8 +
+         (e.apres || 0);
+  });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+  return h;
+}
+
+/* Saute à la page suivante si le bloc mesuré ne tient pas en entier.
+   La marge de 6 mm couvre la réserve que place() prend avant chaque ligne. */
+function reserverBloc(doc, p, hauteur) {
+  if (p.y + hauteur + 6 > PDF_BAS_UTILE) { doc.addPage(); p.y = PDF_MARGE; }
+}
+
+// --- Avenant au bail ------------------------------------------------------
+
+/* Modèle d'avenant pour un immeuble, ou null. Sert aux écrans. Le modèle
+   doit porter lui-même l'identifiant de l'immeuble : une clé mal recopiée
+   dans la configuration ne peut pas faire imprimer le texte d'un autre. */
+function modeleAvenantImmeuble(immeubleId) {
+  const m = (CONFIG.avenants || {})[immeubleId];
+  return (m && m.immeuble_id === immeubleId) ? m : null;
+}
+
+/* Modèle d'avenant d'une visite, ou null. Trois verrous :
+   — JAMAIS à la sortie ;
+   — seulement si l'avenant a été joint à la création de la visite ;
+   — le modèle est celui de L'IMMEUBLE DE LA VISITE.
+   Une discordance ARRÊTE la fabrication du document : imprimer l'avenant
+   d'un autre immeuble serait pire que ne rien imprimer. */
+function modeleAvenant(V) {
+  if (!V || V.type !== "EDLE" || !V.avenant) return null;
+  const id = V.bien && V.bien.immeuble_id;
+  const m = modeleAvenantImmeuble(id);
+  if (!m || V.avenant.modele !== id) {
+    throw new Error("Avenant : le modèle « " + (V.avenant.modele || "?") +
+      " » ne correspond pas à l'immeuble de la visite « " + (id || "?") + " »");
+  }
+  return m;
+}
+
+var AVENANT_POINTILLES = "..........";
+
+/* Les champs de date d'iOS rendent « AAAA-MM-JJ » : lus comme texte, sans
+   passer par Date, pour qu'aucun fuseau horaire ne décale un jour. */
+function dateSaisieFr(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  return m ? m[3] + "/" + m[2] + "/" + m[1] : null;
+}
+function anneeSaisie(iso) {
+  const m = /^(\d{4})-\d{2}-\d{2}/.exec(iso || "");
+  return m ? m[1] : null;
+}
+
+/* Remplace les champs {NOM}. Un champ inconnu arrête tout : une accolade
+   imprimée dans un document signé ne se rattrape pas. */
+function remplirAvenant(texte, valeurs) {
+  return String(texte).replace(/\{([A-Z_]+)\}/g, (tout, cle) => {
+    if (!(cle in valeurs)) throw new Error("Avenant : champ inconnu " + tout);
+    const v = valeurs[cle];
+    return (v === null || v === undefined || v === "") ? AVENANT_POINTILLES : String(v);
+  });
+}
+
+/* Le texte complet de l'avenant, tel qu'il sera imprimé. Séparé du dessin
+   pour pouvoir être contrôlé tel quel. */
+function texteAvenant(V, m) {
+  const bail = V.bail || {};
+  const dossier = (V.bien && V.bien.dossier_unite_onedrive) || "";
+  const t = (typeof extraireTypeEtNumero === "function")
+    ? extraireTypeEtNumero(dossier) : { type: null, num: null };
+
+  const preneurs = (V.parties && V.parties.preneurs) || [];
+  const locataire = preneurs.map(x =>
+    (x.civilite || AVENANT_POINTILLES) + " " + (x.nom_complet || AVENANT_POINTILLES)
+  ).join(" et ");
+
+  const valeurs = {
+    DEBUT: dateSaisieFr(bail.debut),
+    FIN: dateSaisieFr(bail.fin),
+    ANNEE_DEBUT: anneeSaisie(bail.debut),
+    ANNEE_FIN: anneeSaisie(bail.fin),
+    LOCATAIRE: locataire,
+    NUMERO: (t.type === "STUDIO" && t.num != null) ? String(t.num) : null,
+    DOSSIER: dossier,
+    INTERNET: null,
+    DATE: dateCourteFr(V.date_signature || new Date().toISOString()),
+  };
+  valeurs.INTERNET = remplirAvenant(
+    V.avenant.internet === false ? m.internet_non : m.internet_oui, valeurs);
+
+  return {
+    titre: remplirAvenant(m.titre, valeurs),
+    entete: [
+      remplirAvenant(m.coordonnees, valeurs),
+      remplirAvenant(t.type === "STUDIO" && t.num != null ? m.unite_studio : m.unite_autre, valeurs),
+    ],
+    corps: m.paragraphes.map(x => remplirAvenant(x, valeurs)),
+    fait: remplirAvenant(m.fait, valeurs),
+  };
+}
+
+/* Une page à part, avant les signatures : celles-ci la suivent et la
+   couvrent, et elle est comprise dans l'empreinte du document. */
+function pageAvenant(doc, p, V, m) {
+  const t = texteAvenant(V, m);
+  doc.addPage(); p.y = PDF_MARGE;
+  doc.setTextColor(...PDF_ROUGE_TITRE);
+  p.paragraphe(t.titre, { gras: true, taille: 12 });
+  doc.setTextColor(0);
+  doc.setDrawColor(31, 78, 95); doc.setLineWidth(0.4);
+  doc.line(PDF_MARGE, p.y - 2, PDF_LARGEUR - PDF_MARGE, p.y - 2);
+  p.saut(6);
+  t.entete.forEach(l => { p.paragraphe(l); p.saut(2); });
+  p.saut(4);
+  t.corps.forEach(l => { p.paragraphe(l); p.saut(3); });
+  p.saut(3);
+  p.paragraphe(t.fait);
+  p.saut(8);
+}
+
+// --- Prêt de meubles de la S.A. SAMADHI --------------------------------
+
+/* Le prêt est-il POSSIBLE pour cet immeuble et ce bailleur ? Sert aux
+   écrans. Il faut une adresse propre au prêt dans la configuration, et le
+   bailleur supposé par les textes validés. */
+function pretPossible(immeubleId, bailleurCle) {
+  const c = CONFIG.pret_meubles;
+  return !!(c && c.adresses && c.adresses[immeubleId] && bailleurCle === c.bailleur_cle);
+}
+
+/* Configuration du prêt d'une visite, ou null. Verrous :
+   — JAMAIS à la sortie ;
+   — seulement si le prêt a été joint à la création de la visite ;
+   — l'immeuble noté doit être celui de la visite, avoir son adresse, et le
+     bailleur doit être celui que supposent les textes validés.
+   Une discordance ARRÊTE la fabrication du document. La description du
+   mobilier est contrôlée à part (genererPV), pour que les écrans puissent
+   savoir que le prêt est joint avant qu'elle soit saisie. */
+function modelePret(V) {
+  if (!V || V.type !== "EDLE" || !V.pret) return null;
+  const c = CONFIG.pret_meubles;
+  const id = V.bien && V.bien.immeuble_id;
+  const p = V.parties || {};
+  if (!c || !c.adresses || !c.adresses[id] || V.pret.modele !== id) {
+    throw new Error("Prêt de meubles : l'immeuble noté (« " + (V.pret.modele || "?") +
+      " ») ne correspond pas à l'immeuble de la visite ou n'a pas d'adresse (« " + (id || "?") + " »)");
+  }
+  if (p.bailleur_cle !== c.bailleur_cle || p.bailleur_represente_par !== c.representant) {
+    throw new Error("Prêt de meubles : les textes validés supposent le bailleur « " +
+      c.bailleur_cle + " » représenté par " + c.representant + ", ce qui n'est pas le cas de cette visite");
+  }
+  return c;
+}
+
+/* Mentions juridiques communes au document et à l'écran des signatures,
+   pour que les deux disent toujours exactement la même chose. Avec
+   l'avenant seul, les phrases sont celles de la 2.33.2, au caractère près. */
+function mentionsJointes(avenant, pret) {
+  const AV = "l'avenant au bail relatif au calcul des charges";
+  const PM = "le prêt de meubles consenti par la S.A. SAMADHI";
+  return {
+    portee: (avenant || pret)
+      ? " ainsi que sur " + [avenant ? AV : null, pret ? PM : null].filter(Boolean).join(" et sur ")
+      : "",
+    connaissance: (avenant || pret)
+      ? " et " + [avenant ? "de " + AV : null, pret ? "du prêt de meubles consenti par la S.A. SAMADHI" : null]
+          .filter(Boolean).join(" et ")
+      : "",
+    approuver: (avenant || pret)
+      ? " et d'approuver " + [avenant ? "cet avenant" : null, pret ? "ce prêt" : null].filter(Boolean).join(" et ")
+      : "",
+    qualiteBailleur: pret ? ", et pour la S.A. SAMADHI, prêteur — Administrateur" : "",
+  };
+}
+
+/* Le texte complet de la page, tel qu'il sera imprimé. */
+function textePret(V, c) {
+  const preneurs = (V.parties && V.parties.preneurs) || [];
+  const nombre = preneurs.length > 1 ? "plusieurs" : "un";
+  const locataires = preneurs.map(x =>
+    (x.civilite || AVENANT_POINTILLES) + " " + (x.nom_complet || AVENANT_POINTILLES)
+  ).join(" et ");
+  const dossier = (V.bien && V.bien.dossier_unite_onedrive) || "";
+  const t = (typeof extraireTypeEtNumero === "function")
+    ? extraireTypeEtNumero(dossier) : { type: null, num: null };
+  const valeurs = {
+    LOCATAIRES: locataires,
+    ADRESSE: c.adresses[V.bien.immeuble_id],
+    BOITE: (t.type === "STUDIO" && t.num != null) ? String(t.num) : dossier,
+    DATE: dateCourteFr(V.date_signature || new Date().toISOString()),
+  };
+  return {
+    titre: c.titre,
+    declaration: remplirAvenant(c.declaration[nombre], valeurs),
+    mobilier: c.mobilier,
+    description: String(V.pret.mobilier || "").trim(),
+    engagement: remplirAvenant(c.engagement[nombre], valeurs),
+    indemnite: remplirAvenant(c.indemnite[nombre], valeurs),
+    /* Clause d'aménagement : absente des configurations antérieures à la
+       2.34.6. On rend une chaîne vide plutôt que de lever : un procès-verbal
+       ne doit pas échouer parce qu'une clause facultative manque. */
+    amenagement: (c.amenagement && c.amenagement[nombre])
+      ? remplirAvenant(c.amenagement[nombre], valeurs) : "",
+    fait: remplirAvenant(c.fait, valeurs),
+    signature: c.signature,
+  };
+}
+
+/* Une page à part, après l'avenant et avant les signatures. */
+function pagePret(doc, p, V, c) {
+  const t = textePret(V, c);
+  doc.addPage(); p.y = PDF_MARGE;
+  doc.setTextColor(...PDF_ROUGE_TITRE);
+  p.paragraphe(t.titre, { gras: true, taille: 12 });
+  doc.setTextColor(0);
+  doc.setDrawColor(31, 78, 95); doc.setLineWidth(0.4);
+  doc.line(PDF_MARGE, p.y - 2, PDF_LARGEUR - PDF_MARGE, p.y - 2);
+  p.saut(6);
+  p.paragraphe(t.declaration); p.saut(4);
+  p.paragraphe(t.mobilier); p.saut(2);
+  /* Le mobilier tel que saisi, retours à la ligne compris. */
+  t.description.split(/\r?\n/).forEach(l => p.paragraphe(l, { retrait: 4 }));
+  p.saut(5);
+  p.paragraphe(t.engagement); p.saut(3);
+  p.paragraphe(t.indemnite); p.saut(4);
+  /* Aménagement et déménagement du mobilier. Chaque alinéa sur sa ligne :
+     la clause en compte trois, et les fondre en un pavé la rendrait
+     illisible sur un document signé. */
+  if (t.amenagement) {
+    t.amenagement.split(/\r?\n/).forEach(l => { p.paragraphe(l); p.saut(3); });
+    p.saut(2);
+  }
+  p.paragraphe(t.fait); p.saut(6);
+  p.paragraphe(t.signature);
+  p.saut(8);
+}
+
+async function genererPV(visite) {
+  /* Fichiers de versions différentes (mise à jour publiée à moitié) : un
+     procès-verbal fabriqué ainsi pourrait perdre l'avenant, la civilité ou
+     la confirmation sans rien dire. On refuse. */
+  if (typeof VERSION_APP_JS === "undefined" || VERSION_APP_JS !== VERSION_PDF_JS ||
+      typeof VERSION_VISITE_JS === "undefined" || VERSION_VISITE_JS !== VERSION_PDF_JS ||
+      (typeof CONFIG !== "undefined" && CONFIG.version_app !== VERSION_PDF_JS)) {
+    throw new Error("Mise à jour incomplète : les fichiers de l'application ne sont pas " +
+      "tous de la version " + VERSION_PDF_JS + ". Ferme complètement l'application et rouvre-la.");
+  }
+  const doc = nouveauDocument();
+  const p = creerPlume(doc);
+  const V = visite;
+  const sortie = V.type === "EDLS";
+  /* Calculé avant tout dessin : une discordance de modèle arrête ici. */
+  const avenant = modeleAvenant(V);
+  if (avenant && !CONFIG.protocole_avenant) {
+    throw new Error("Avenant : la puce du protocole est absente de la configuration");
+  }
+  const pret = modelePret(V);
+  if (pret && !(CONFIG.protocole_pret && CONFIG.protocole_pret.length === 2)) {
+    throw new Error("Prêt de meubles : les puces du protocole sont absentes de la configuration");
+  }
+  /* Un prêt sans mobilier décrit n'a pas de sens : pas de document. */
+  if (pret && !String(V.pret.mobilier || "").trim()) {
+    throw new Error("Prêt de meubles : la description du mobilier est vide. " +
+      "Complète-la à l'écran des identités.");
+  }
+  const jointes = mentionsJointes(!!avenant, !!pret);
+
+  // --- 1. En-tête et protocole -------------------------------------------
+  p.titre(sortie ? "PROCÈS-VERBAL D'ÉTAT DES LIEUX DE SORTIE"
+                 : "PROCÈS-VERBAL D'ÉTAT DES LIEUX D'ENTRÉE");
+  p.paragraphe(V.bien.adresse_complete || V.bien.unite_source, { gras: true, taille: 11 });
+  p.paragraphe(V.bien.immeuble + " — " + V.bien.unite_source);
+  p.saut(4);
+
+  p.sousTitre("Protocole de signature");
+  (CONFIG.protocole && CONFIG.protocole.length ? CONFIG.protocole : PROTOCOLE_PROVISOIRE)
+    .concat(avenant ? [CONFIG.protocole_avenant] : [])
+    .concat(pret ? CONFIG.protocole_pret : [])
+    .forEach(t => { p.paragraphe("• " + t, { retrait: 2 }); p.saut(1.5); });
+  if (!CONFIG.protocole || !CONFIG.protocole.length) {
+    p.saut(2);
+    p.paragraphe("Texte provisoire, en attente de relecture juridique.",
+                 { taille: 8, retrait: 2 });
+  }
+  p.saut(6);
+
+  // --- 2. Parties et dates ------------------------------------------------
+  p.sousTitre("Désignation des parties");
+  p.ligne("Bailleur", V.parties.bailleur);
+  if (V.parties.bailleur_represente_par) {
+    const feminin = /^(S\.?A\.?|S\.?P\.?R\.?L|S\.?R\.?L|SC)/i.test(String(V.parties.bailleur).trim());
+    p.ligne("Représenté" + (feminin ? "e" : "") + " par", V.parties.bailleur_represente_par);
+  }
+  /* L'auteur des constatations est distinct du représentant : c'est
+     souvent la même personne, mais l'article 27, §5, 2°, exige l'identité
+     ET la qualité de celui qui dresse le constat. Repli sur le
+     représentant pour les visites créées avant que le champ n'existe. */
+  {
+    const auteur = V.parties.auteur_constatations ||
+      V.parties.bailleur_represente_par;
+    if (auteur) p.ligne("Auteur des constatations", auteur);
+  }
+  (V.parties.preneurs || []).forEach((x, i) => {
+    p.ligne("Preneur " + (i + 1), x.nom_complet);
+    p.ligne("   Qualité", x.qualite || "Locataire");
+    if (x.numero_carte_identite)
+      p.ligne("   Carte d'identité n°", x.numero_carte_identite);
+    p.ligne("   Identité vérifiée", x.identite_verifiee ? "oui, sur présentation de la carte" : "non");
+    if (x.email) p.ligne("   Courriel", x.email);
+  });
+  p.filet();
+  p.ligne("Date de la visite", dateFr(V.date_debut));
+  p.ligne("Type", sortie ? "État des lieux de sortie" : "État des lieux d'entrée");
+
+  /* Références du bail — article 27, §2, 3°, à l'entrée et §5, 4°, à la
+     sortie. La date de l'état des lieux d'entrée n'est jamais saisie : elle
+     vient de la comparaison, qui l'a déjà retrouvée dans le dossier voisin. */
+  {
+    const bail = V.bail || {};
+    const edleDate = (V.comparaison || {}).edle_date || null;
+    p.ligne("Début du bail", dateCourteFr(bail.debut));
+    p.ligne("Avenant au bail", bail.avenant === true ? "oui" :
+      (bail.avenant === false ? "non" : null));
+    if (sortie) {
+      p.ligne("Fin du bail", dateCourteFr(bail.fin));
+      p.ligne("État des lieux d'entrée du", dateCourteFr(edleDate));
+
+      /* DEUX NOTIONS DISTINCTES, ET LE DÉCRET LES ÉNUMÈRE SÉPARÉMENT.
+
+         L'article 27, §5, 4°, cite la date du bail ET la durée
+         d'occupation : la seconde n'est donc pas la durée du premier.
+
+         Les baux sont annuels et reconduits chaque année. Un locataire
+         sous son troisième bail occupe depuis trois ans, mais son bail
+         courant n'en fait qu'un. Calculer l'occupation depuis la date du
+         bail donnait « 11 mois » pour une occupation de trois ans —
+         inscrit dans un document signé, et précisément sous le champ qui
+         commande la vétusté déductible.
+
+         AUCUN REPLI : sans état des lieux d'entrée connu, un tiret. Un
+         tiret se voit et se corrige ; un chiffre faux se signe. */
+      p.ligne("Durée du bail en cours", dureeBail(bail.debut, bail.fin));
+      p.ligne("Durée d'occupation",
+        edleDate ? dureeOccupation(edleDate, V.date_debut) : null);
+    }
+  }
+
+  /* L'adresse de consultation est créée au démarrage de la visite : elle
+     peut donc figurer au document signé. Elle ne donne accès qu'aux
+     photographies — ni au fichier de données, ni au bail. */
+  if (V.bien.lien_photos) {
+    p.saut(3);
+    p.paragraphe("Les photographies faisant partie du présent état des lieux sont " +
+      "consultables en lecture seule à l'adresse suivante :", { taille: 9 });
+    p.paragraphe(V.bien.lien_photos, { taille: 8, retrait: 2 });
+  }
+  p.saut(6);
+
+  // --- 3. Notes liminaires ------------------------------------------------
+  p.sousTitre("Notes liminaires");
+  p.paragraphe(
+    "Les constatations se limitent aux parties visibles et aux installations apparentes, " +
+    "sans déplacement du mobilier ni investigation technique. Le fonctionnement des " +
+    "canalisations, de l'installation de gaz, d'électricité et des conduits n'a pas été testé.");
+  p.saut(2);
+  p.paragraphe(
+    "Repérage : les pièces sont désignées par rapport à la rue ; à l'intérieur d'une pièce, " +
+    "les murs sont désignés depuis l'entrée — mur de face, de gauche, de droite, arrière.");
+  p.saut(6);
+
+  // --- 4. Constatations ---------------------------------------------------
+  p.bandeauFixe(0, "Constatations");
+  p.reprendreTeintes();
+  V.pieces.forEach(piece => {
+    const photos = V.photos.filter(x => x.rattachement === piece.piece_id);
+
+    /* L'état général de la pièce est une appréciation d'ensemble, distincte
+       des constatations rattachées aux photographies. Il passe À DROITE DU
+       BANDEAU, là où l'œil le cherche une fois la pièce repérée. */
+    const eg = piece.etat_general || {};
+    const general = [libelleEtat(eg.etat), libelleProprete(eg.proprete)]
+      .filter(Boolean).join(", ");
+
+    p.bandeau(piece.libelle, general);
+
+    if (eg.commentaire) { p.paragraphe(eg.commentaire, { retrait: 2 }); p.saut(2); }
+
+    if (piece.constatations.length === 0 && photos.length === 0 &&
+        !general && !eg.commentaire) {
+      p.paragraphe("Rien à signaler.", { retrait: 2 });
+    } else {
+      piece.constatations.forEach(c => {
+        /* Les constatations d'avant la refonte portaient un état et une
+           propreté ; les nouvelles se rattachent à une photographie. */
+        const q = [libelleEtat(c.etat), libelleProprete(c.proprete)].filter(Boolean).join(", ");
+        if (c.texte) p.paragraphe("• " + c.texte, { retrait: 2 });
+        if (q) p.paragraphe(c.texte ? "  (" + q + ")" : "• " + q, { retrait: 2, taille: 9 });
+        /* Un constat de groupe porte la LISTE des photographies : c'est ce
+           qui le relie à l'annexe, où figurent date, heure et empreinte. */
+        if (c.photo_noms && c.photo_noms.length) {
+          p.paragraphe("  photographies : " +
+            c.photo_noms.map(x => numeroPhoto({ nom_fichier: x })).join(", "),
+            { retrait: 2, taille: 7 });
+        } else if (c.photo_nom) {
+          p.paragraphe("  photographie : " + numeroPhoto({ nom_fichier: c.photo_nom }),
+            { retrait: 2, taille: 7 });
+        }
+        p.saut(1.5);
+      });
+      if (photos.length) {
+        /* Les numéros seulement : à deux cents photographies, les empreintes
+           en clair noyaient les constatations sous des pages illisibles et
+           le lecteur cessait de regarder ce qui compte. Elles figurent en
+           annexe, dans le même fichier, donc couvertes par la signature. */
+        p.paragraphe("Photographie" + (photos.length > 1 ? "s" : "") + " : " +
+          photos.map(numeroPhoto).join(", ") +
+          "  (voir annexe)", { retrait: 2, taille: 8 });
+      }
+    }
+    p.saut(7);
+  });
+
+  // --- 5. Compteurs -------------------------------------------------------
+  p.bandeauFixe(1, "Relevé des compteurs");
+  const c = V.compteurs || {};
+  if (c.electricite) {
+    p.sousTitre("Électricité");
+    p.ligne("Numéro", c.electricite.numero);
+    if (c.electricite.bi_horaire) {
+      p.ligne("Index jour", c.electricite.index_jour);
+      p.ligne("Index nuit", c.electricite.index_nuit);
+    } else {
+      p.ligne("Index", c.electricite.index_unique);
+    }
+    const r = c.electricite.index_entree_rappel;
+    if (sortie && r) {
+      p.ligne("Index à l'entrée", c.electricite.bi_horaire
+        ? [r.index_jour, r.index_nuit].filter(x => x != null).join(" / ")
+        : r.index_unique);
+    }
+  }
+  if (c.eau) {
+    p.sousTitre("Eau");
+    p.ligne("Numéro", c.eau.numero);
+    p.ligne("Index", c.eau.index);
+    if (sortie && c.eau.index_entree_rappel)
+      p.ligne("Index à l'entrée", c.eau.index_entree_rappel.index);
+  }
+  if ((c.ista || []).length) {
+    p.sousTitre("ISTA — à suivre avec décompte charges");
+    c.ista.forEach((x, i) => {
+      p.ligne("Répartiteur " + (i + 1) + (x.emplacement ? " — " + x.emplacement : ""), x.numero);
+      p.ligne("   Index R", x.index_r);
+      p.ligne("   Index 21", x.index_21);
+    });
+  }
+  [["gaz", "Gaz"], ["mazout", "Mazout"]].forEach(([k, lib]) => {
+    if (c[k]) { p.sousTitre(lib); p.ligne("Numéro", c[k].numero); p.ligne("Index", c[k].index); }
+  });
+  p.saut(6);
+
+  // --- 6. Équipements, clés, état général ---------------------------------
+  p.bandeauFixe(2, "Équipements, clés et état général");
+  const e = V.equipements || {};
+  p.ligne("Sonnette", e.sonnette && e.sonnette.etat === "fonctionnelle" ? "fonctionnelle"
+        : e.sonnette && e.sonnette.etat === "hors_service" ? "hors service" : null);
+  p.ligne("Détecteur de fumée", e.detecteur_fumee && e.detecteur_fumee.present === true ? "présent"
+        : e.detecteur_fumee && e.detecteur_fumee.present === false ? "absent" : null);
+  if (e.detecteur_fumee && e.detecteur_fumee.commentaire)
+    p.paragraphe(e.detecteur_fumee.commentaire, { retrait: 2, taille: 9 });
+  p.filet();
+
+  p.sousTitre("Clés remises");
+  (typeof CLES_STANDARD !== "undefined" ? CLES_STANDARD : []).forEach(k => {
+    const n = (V.cles || {})[k.cle];
+    p.ligne(k.libelle, (n === null || n === undefined) ? "sans objet" : n);
+  });
+  p.filet();
+
+  const g = V.etat_general || {};
+  p.sousTitre("État général");
+  p.ligne("Dégâts locatifs constatés",
+    g.degats_locatifs && g.degats_locatifs.constate === true ? "oui"
+    : g.degats_locatifs && g.degats_locatifs.constate === false ? "non" : null);
+  if (g.degats_locatifs && g.degats_locatifs.commentaire)
+    p.paragraphe(g.degats_locatifs.commentaire, { retrait: 2, taille: 9 });
+  p.ligne("Les lieux sont propres",
+    g.proprete && g.proprete.propre === true ? "oui"
+    : g.proprete && g.proprete.propre === false ? "non" : null);
+  if (g.proprete && g.proprete.commentaire)
+    p.paragraphe(g.proprete.commentaire, { retrait: 2, taille: 9 });
+
+  if (V.divers) { p.filet(); p.sousTitre("Divers"); p.paragraphe(V.divers); }
+  p.saut(6);
+
+  // --- 6 ter. Version antérieure ------------------------------------------
+  if (V.version_precedente) {
+    p.bandeauFixe(3, "Version antérieure");
+    p.paragraphe("Le présent document est la version " + (V.version_doc || "V2") +
+      " de l'état des lieux référencé ci-dessus. Il rectifie la version " +
+      V.version_precedente.version + ", signée le " +
+      dateFr(V.version_precedente.date_signature) + ", qui demeure archivée et " +
+      "n'a pas été modifiée.");
+    if (V.version_precedente.empreinte)
+      p.paragraphe("Empreinte SHA-256 de la version antérieure : " +
+        V.version_precedente.empreinte, { taille: 8 });
+    if (V.motif_version)
+      p.paragraphe("Motif de la rectification : " + V.motif_version);
+    p.saut(6);
+  }
+
+  // --- 6 bis. Observations et réserves ------------------------------------
+  p.bandeauFixe(4, "Observations et réserves");
+  const reserves = V.reserves || [];
+  if (reserves.length === 0) {
+    p.paragraphe("Le preneur, invité à faire consigner ses observations et réserves " +
+      "avant la validation du présent état des lieux, a déclaré n'en avoir aucune.");
+  } else {
+    p.paragraphe("Les observations et réserves suivantes ont été consignées à la " +
+      "demande de leur auteur, avant la validation du présent état des lieux :");
+    p.saut(3);
+    reserves.forEach((r, i) => {
+      p.sousTitre((i + 1) + ". " + (r.auteur || "Le preneur") +
+        (r.piece ? " — " + r.piece : ""));
+      p.paragraphe(r.texte, { retrait: 2 });
+      p.saut(2);
+    });
+  }
+  p.saut(6);
+
+  // --- 7. Chiffrage -------------------------------------------------------
+  if (V.options && V.options.chiffrage_actif && V.chiffrage) {
+    p.bandeauFixe(2, "Chiffrage");
+    const ch = V.chiffrage;
+    if (ch.total_degats != null) p.ligne("Dégâts", euro(ch.total_degats));
+    if (ch.estimation_nettoyage_heures != null)
+      p.ligne("Nettoyage estimé", ch.estimation_nettoyage_heures + " heures");
+    if (ch.cout_nettoyage != null) p.ligne("Coût du nettoyage", euro(ch.cout_nettoyage));
+    if (ch.chomage_locatif != null) p.ligne("Chômage locatif", euro(ch.chomage_locatif));
+    if (ch.total_tvac != null) {
+      p.filet();
+      doc.setFont("helvetica", "bold");
+      p.ligne("TOTAL TVAC", euro(ch.total_tvac));
+      doc.setFont("helvetica", "normal");
+    }
+    /* Le bail désigne un expert dont la décision « liera définitivement les
+       parties ». Le décret wallon du 15 mars 2018 répute non écrite toute
+       clause de décision obligatoire convenue avant la naissance du
+       différend : s'en tenir à l'indicatif ne coûte donc aucun droit, et
+       évite d'être enfermé dans un chiffre annoncé debout dans le logement. */
+    p.saut(3);
+    p.paragraphe("Les montants qui précèdent sont établis sur estimation, à titre " +
+      "indicatif. Le décompte définitif des sommes dues sera arrêté sur la base des " +
+      "devis ou factures des travaux effectivement réalisés, dont copie sera " +
+      "transmise au preneur.");
+    p.saut(6);
+  }
+
+  // --- 7 bis. Portée du présent procès-verbal ------------------------------
+  /* Ces clauses décrivent la portée du constat ; elles n'ajoutent rien au
+     bail, ce qui les rend opposables sans avenant. Réservées d'un bloc :
+     coupées par un saut de page, elles seraient signées à moitié lues. */
+  {
+    const clauses = [];
+    clauses.push("Les constatations qui précèdent portent sur l'état apparent des " +
+      "lieux au jour de la visite. Elles ont été faites contradictoirement, en " +
+      "présence des parties, sur ce qui était visible et accessible. Elles ne valent " +
+      "ni renonciation ni quittance pour un vice ou une dégradation qui n'était ni " +
+      "apparent ni accessible à ce moment, notamment sous un revêtement, derrière un " +
+      "meuble ou un appareil.");
+
+    /* La dernière phrase n'est pas une précaution de style : sans elle, la
+       clause ressemblerait à une décharge des obligations de sécurité et de
+       salubrité, qui sont impératives et ne peuvent être écartées. */
+    clauses.push("Le présent procès-verbal est un constat d'état des lieux. Il ne " +
+      "constitue ni une expertise technique, ni un diagnostic de conformité des " +
+      "installations de gaz, d'électricité, d'eau ou de chauffage. Il ne modifie " +
+      "aucune des obligations que la loi met à charge de l'une ou l'autre partie.");
+
+    clauses.push("La signature du présent procès-verbal porte sur les constatations " +
+      "matérielles qu'il contient" + jointes.portee +
+      ". Elle ne vaut pas solde de tout compte. Demeurent " +
+      "entiers et étrangers au présent document : le décompte des charges et " +
+      "consommations à intervenir" +
+      (avenant ? ", dont les modalités sont fixées par cet avenant" : "") +
+      ", les loyers, indexations, taxes et primes " +
+      "d'assurance échus et impayés, ainsi que toute indemnité contractuelle.");
+
+    clauses.push("La répartition des réparations entre les parties s'opère " +
+      "conformément aux articles 8 et 28, §2, du décret du 15 mars 2018 relatif au " +
+      "bail d'habitation et à la liste non limitative des réparations locatives " +
+      "arrêtée par le Gouvernement wallon. Aucune grille de vétusté n'est annexée au " +
+      "bail ; la grille indicative régionale n'est donc pas applicable entre les " +
+      "parties.");
+
+    /* Clause de clôture : sortie uniquement. À l'entrée, elle annoncerait la
+       libération d'une garantie qui vient d'être constituée.
+       L'accord prend effet AU TERME DU BAIL et non au jour de la signature :
+       le décret exige un accord établi au plus tôt à la fin du contrat, or
+       l'état des lieux de sortie se dresse avant la remise des clés. */
+    if (sortie) {
+      const auTerme = bailArriveAuTerme(V);
+      clauses.push("Les parties reconnaissent que la mission de constat est achevée. " +
+        "Le bailleur marque son accord sur la libération de la garantie locative" +
+        (auTerme ? ", " : ", cet accord prenant effet au terme du contrat de bail, ") +
+        "sous déduction des sommes dues au titre du présent procès-verbal et sous " +
+        "réserve du décompte des charges visé ci-dessus, ainsi que des vices non " +
+        "apparents visés au premier alinéa de la présente section.");
+    }
+
+    /* Réservée d'un bloc, par mesure du texte réellement imprimé. */
+    reserverBloc(doc, p, PDF_BANDEAU +
+      hauteurTextes(doc, clauses.map((t, i) => ({ texte: t, apres: i ? 2 : 0 }))));
+    p.bandeauFixe(4, "Portée du présent procès-verbal");
+    clauses.forEach((t, i) => { if (i) p.saut(2); p.paragraphe(t); });
+    p.saut(5);
+  }
+
+  // --- 7 ter. Avenant au bail (entrée seulement) ---------------------------
+  if (avenant) pageAvenant(doc, p, V, avenant);
+  // --- 7 quater. Prêt de meubles (entrée seulement) -------------------------
+  if (pret) pagePret(doc, p, V, pret);
+
+  // --- 8. Signatures ------------------------------------------------------
+  /* Mention expresse, imprimée UNIQUEMENT si des photographies restent à
+     déposer. Elle est placée avant les signatures : le preneur la lit avant
+     de signer, et non après. Texte validé avec le protocole. */
+  const echouees = V.photos.filter(x => x.statut_transfert === "echec");
+  const enAttente = V.photos.filter(x =>
+    x.statut_transfert !== "confirme" && x.statut_transfert !== "echec");
+  if (enAttente.length || echouees.length) {
+    /* Réservée d'un bloc : coupée par un saut de page, la mention perdrait
+       sa force — le preneur signerait au bas d'une page en n'en ayant lu
+       que la moitié. */
+    const mentions = [];
+    mentions.push("À l'instant de la présente signature, " +
+      (enAttente.length + echouees.length) + " photographie(s) sur " +
+      V.photos.length + " n'avaient pas été transmises au dossier informatique.");
+    mentions.push("Chacune a été prise et présentée aux parties au cours de la visite. " +
+      "Sa date, son heure et son empreinte SHA-256 figurent à l'annexe du présent " +
+      "procès-verbal et sont donc couvertes par les signatures ci-dessous.");
+    if (enAttente.length) {
+      mentions.push(enAttente.length + " photographie(s) sont en attente de " +
+        "transmission, faute de réseau disponible sur les lieux. Elles seront " +
+        "déposées dans le dossier de la visite dès le rétablissement du réseau, " +
+        "à l'adresse indiquée au présent document.");
+    }
+    if (echouees.length) {
+      /* Le locataire ne les trouvera pas dans le dossier consultable : le
+         dire au document plutôt que de le laisser découvrir. */
+      mentions.push(echouees.length + " photographie(s), identifiée(s) à l'annexe " +
+        "comme non transmises, ont été refusées par le service de stockage et ne " +
+        "figureront pas dans le dossier consultable. Elles demeurent conservées par " +
+        "le bailleur et peuvent être produites sur simple demande : leur empreinte " +
+        "inscrite ci-après permet d'en vérifier l'intégrité.");
+    }
+    mentions.push("Toute divergence entre une photographie produite ultérieurement et " +
+      "l'empreinte inscrite à l'annexe se constate par simple recalcul.");
+    reserverBloc(doc, p, PDF_BANDEAU +
+      hauteurTextes(doc, mentions.map((t, i) => ({ texte: t, apres: i ? 2 : 0 }))));
+    p.bandeauFixe(4, "Photographies non déposées à ce jour");
+    mentions.forEach((t, i) => { if (i) p.saut(2); p.paragraphe(t); });
+    p.saut(5);
+  }
+
+  const signataires = 1 + (V.parties.preneurs || []).length;
+  const approbation = [];
+  approbation.push("Chaque signataire confirme avoir participé contradictoirement à l'état " +
+    "des lieux, avoir pris connaissance du rapport qui lui est présenté ainsi que des " +
+    "photographies qui en font partie" + jointes.connaissance +
+    ", et avoir eu la possibilité de faire consigner ses " +
+    "observations et réserves avant sa validation.");
+  approbation.push("En apposant sa signature ci-dessous, il manifeste sa volonté de valider le " +
+    "présent état des lieux" + jointes.approuver +
+    ", sous réserve des observations et réserves qui y sont " +
+    "expressément consignées.");
+  approbation.push("Le présent état des lieux fait partie intégrante du bail dont il ne peut " +
+    "être dissocié. Chaque signataire reconnaît en recevoir un exemplaire.");
+  const etabli = "Document établi le " +
+    dateFr(V.date_signature || new Date().toISOString()) + " (" + fuseau() + ")." +
+    "  Référence : " + (V.edl_id || V.visit_id) + "  —  Version : " + (V.version_doc || "V1");
+
+  /* Réservé d'un bloc, PAR MESURE : bandeau, « LU ET APPROUVÉ », les trois
+     paragraphes, toutes les rangées de signatures et la ligne d'horodatage.
+     Coupé, le bloc ferait signer une page sans le texte qu'on approuve.
+     Au-delà d'une page entière (très nombreux preneurs), il s'écoule. */
+  const hauteurSignatures = PDF_BANDEAU +
+    hauteurTextes(doc, [{ texte: "LU ET APPROUVÉ", gras: true, taille: 12, apres: 2 }]
+      .concat(approbation.map((t, i) => ({ texte: t, apres: i < approbation.length - 1 ? 2 : 0 })))) +
+    Math.ceil(signataires / 2) * 34 + 4 + hauteurTextes(doc, [{ texte: etabli, taille: 8 }]);
+  if (hauteurSignatures + 6 <= PDF_BAS_UTILE - PDF_MARGE) reserverBloc(doc, p, hauteurSignatures);
+
+  p.bandeauFixe(0, "Signatures");
+  p.paragraphe("LU ET APPROUVÉ", { gras: true, taille: 12 });
+  p.saut(2);
+  approbation.forEach((t, i) => { if (i) p.saut(2); p.paragraphe(t); });
+  const blocs = [];
+  blocs.push({ role: "Le bailleur",
+               qualite: (V.parties.bailleur_represente_par ? "Mandataire" : "Bailleur") +
+                 jointes.qualiteBailleur,
+               nom: V.parties.bailleur_represente_par || V.parties.bailleur,
+               image: (V.signatures || {}).bailleur });
+  (V.parties.preneurs || []).forEach((x, i) => {
+    blocs.push({ role: "Le preneur", qualite: x.qualite || "Locataire",
+                 nom: x.nom_complet,
+                 image: ((V.signatures || {}).preneurs || [])[i] });
+  });
+
+  const largeurBloc = (PDF_LARGEUR - 2 * PDF_MARGE - 8) / 2;
+  blocs.forEach((b, i) => {
+    const colonne = i % 2;
+    if (colonne === 0 && i > 0) p.y += 34;
+    if (p.y + 34 > PDF_HAUTEUR - PDF_MARGE) { doc.addPage(); p.y = PDF_MARGE; }
+    const x = PDF_MARGE + colonne * (largeurBloc + 8);
+    const y0 = p.y;
+    doc.setFontSize(9); doc.setTextColor(90);
+    /* L'intitulé tient dans la largeur du bloc : la double qualité de
+       Julien (prêt joint) passe sur deux lignes, le reste descend d'autant. */
+    const intitule = doc.splitTextToSize(b.role + (b.qualite ? " — " + b.qualite : ""), largeurBloc);
+    const decalage = (intitule.length - 1) * 3.8;
+    intitule.forEach((l, k) => doc.text(l, x, y0 + k * 3.8));
+    doc.setTextColor(0); doc.setFontSize(10);
+    doc.text(String(b.nom || ""), x, y0 + 5 + decalage);
+    if (b.image) {
+      try { /* Le cadre de saisie est en 3:1 ; l'imposer en 4,5:1 étirait la signature.
+       On conserve les proportions et on centre dans le cadre. */
+    (() => {
+      const hauteurMax = 20 - decalage, ratio = 3;
+      let larg = Math.min(largeurBloc, hauteurMax * ratio);
+      let haut = larg / ratio;
+      if (haut > hauteurMax) { haut = hauteurMax; larg = haut * ratio; }
+      doc.addImage(b.image, "PNG", x + (largeurBloc - larg) / 2, y0 + 7 + decalage, larg, haut);
+    })(); } catch (_) {}
+    }
+    doc.setDrawColor(150); doc.setLineWidth(0.3);
+    doc.line(x, y0 + 28, x + largeurBloc, y0 + 28);
+  });
+  p.y += 34;
+
+  p.saut(4);
+  p.paragraphe(etabli, { taille: 8 });
+
+  /* Les empreintes des photographies sont inscrites AU document : le
+     SHA-256 du PDF les couvre donc, et l'on peut vérifier plus tard que
+     les photographies produites sont bien celles présentées au signataire. */
+  if (V.photos.length) {
+    p.saut(3);
+    p.paragraphe("Les " + V.photos.length + " photographie(s) référencées " +
+      "ci-dessus sont reprises en annexe, chacune avec sa date, son heure et son " +
+      "empreinte SHA-256. L'empreinte du présent fichier couvre donc l'ensemble : " +
+      "le rapport et l'identification des photographies qui en font partie.", { taille: 8 });
+  }
+
+  // --- 10. Annexe : les photographies ------------------------------------
+  if (V.photos.length) {
+    doc.addPage(); p.y = PDF_MARGE;
+    p.bandeauFixe(3, "ANNEXE — PHOTOGRAPHIES");
+    p.reprendreTeintes();
+    p.paragraphe(
+      "Chaque photographie a été prise au cours de la visite et présentée aux parties. " +
+      "Sa date, son heure et son empreinte SHA-256 ont été établies sur l'appareil au " +
+      "moment de la prise de vue, avant tout transfert. Toute divergence entre une " +
+      "photographie produite ultérieurement et l'empreinte inscrite ci-dessous se " +
+      "constate par simple recalcul.", { taille: 9 });
+    p.saut(4);
+
+    V.pieces.forEach(piece => {
+      const lot = V.photos.filter(x => x.rattachement === piece.piece_id);
+      if (!lot.length) return;
+      p.bandeau(piece.libelle);
+      lot.forEach(x => ligneAnnexe(p, x));
+      p.saut(2);
+    });
+
+    /* Compteurs et autres rattachements hors pièces. */
+    const idPieces = V.pieces.map(x => x.piece_id);
+    const hors = V.photos.filter(x => !idPieces.includes(x.rattachement));
+    if (hors.length) {
+      p.bandeau("Compteurs et divers");
+      hors.forEach(x => ligneAnnexe(p, x));
+    }
+  }
+
+  // --- Pied de page sur chaque feuille ------------------------------------
+  const total = doc.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8); doc.setTextColor(140);
+    doc.text(V.bien.unite_source + " — " + (sortie ? "EDLS" : "EDLE") + " — " +
+             (V.edl_id || V.visit_id) + " " + (V.version_doc || "V1"),
+             PDF_MARGE, PDF_HAUTEUR - 10);
+    doc.text(i + " / " + total, PDF_LARGEUR - PDF_MARGE, PDF_HAUTEUR - 10, { align: "right" });
+    doc.setTextColor(0);
+  }
+
+  return doc;
+}
+
+/* Numéro d'ordre d'une photographie, tel qu'il figure dans son nom de
+   fichier. C'est ce numéro qui relie le corps du document à l'annexe. */
+function numeroPhoto(photo) {
+  const m = String(photo.nom_fichier || "").match(/_(\d{3})_/);
+  return m ? m[1] : "—";
+}
+
+function ligneAnnexe(p, photo) {
+  const d = photo.horodatage ? new Date(photo.horodatage) : null;
+  const quand = d && !isNaN(d.getTime())
+    ? d.toLocaleDateString("fr-BE") + " à " + d.toLocaleTimeString("fr-BE")
+    : "date non enregistrée";
+  p.paragraphe(numeroPhoto(photo) + "  —  " + (photo.nom_fichier || "sans nom") +
+    "  —  " + quand, { retrait: 2, taille: 8 });
+  p.paragraphe(photo.empreinte_sha256
+    ? "SHA-256 " + photo.empreinte_sha256
+    : "empreinte non calculée pour cette photographie",
+    { retrait: 6, taille: 7 });
+  /* Une photographie refusée par le service de stockage ne figurera pas
+     dans le dossier consultable : le document doit le dire, sinon il
+     renvoie à une image introuvable. */
+  if (photo.statut_transfert === "echec") {
+    p.paragraphe("Non transmise au dossier informatique — voir la mention qui précède les signatures",
+      { retrait: 6, taille: 7 });
+  }
+  p.saut(1.5);
+}
+
+function fuseau() {
+  const d = new Date();
+  const m = -d.getTimezoneOffset();
+  const signe = m >= 0 ? "+" : "-";
+  const h = String(Math.floor(Math.abs(m) / 60)).padStart(2, "0");
+  const mn = String(Math.abs(m) % 60).padStart(2, "0");
+  let nom = "";
+  try { nom = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) {}
+  if (nom === "UTC" || nom === "Etc/UTC") nom = "";
+  return (nom ? nom + ", " : "") + "UTC" + signe + h + ":" + mn;
+}
+
+function euro(v) {
+  return Number(v).toFixed(2).replace(".", ",") + " €";
+}
+
+/* Empreinte du document : elle est inscrite au fichier de données et
+   permet de prouver plus tard que le PDF n'a pas été retouché. */
+async function empreinteSha256(donnees) {
+  if (!(crypto && crypto.subtle)) return null;
+  const buf = await crypto.subtle.digest("SHA-256", donnees);
+  return Array.from(new Uint8Array(buf))
+    .map(x => x.toString(16).padStart(2, "0")).join("");
+}
